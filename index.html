@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAQ — СУР</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
+<style>
+  :root{
+    --bg:#F5F6F8; --surface:#FFFFFF; --surface-alt:#F0F2F5; --border:#E1E4E9;
+    --text:#181B20; --text-2:#5B616E; --text-muted:#8B909B;
+    --accent:#1E4FA3; --accent-hover:#173E82; --accent-bg:#E8EFFA;
+    --danger-bg:#FBEAEA; --danger-text:#B3261E; --danger-border:#EFC6C4;
+    --warning-bg:#FCF2E1; --warning-text:#8A5A00; --warning-border:#F2DDB0;
+    --success-bg:#E7F5EA; --success-text:#1E7B34; --success-border:#C6E6CE;
+    --direct-bg:#2C2C2A; --direct-text:#FFFFFF; --direct-border:#2C2C2A;
+    --radius:10px; --sidebar-w:240px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;}
+  code, .mono{font-family:'IBM Plex Mono',monospace;}
+  .app{display:flex;min-height:100vh;}
+  .sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);padding:20px 0;flex-shrink:0;}
+  .brand{display:flex;align-items:center;gap:10px;padding:0 20px 20px;border-bottom:1px solid var(--border);margin-bottom:14px;}
+  .brand-mark{width:30px;height:30px;border-radius:8px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;}
+  .brand-name{font-weight:600;font-size:15px;}
+  .brand-sub{font-size:11px;color:var(--text-muted);}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;color:var(--text-2);text-decoration:none;font-size:13.5px;cursor:pointer;border-left:3px solid transparent;}
+  .nav-item:hover{background:var(--surface-alt);}
+  .nav-item.active{color:var(--accent);background:var(--accent-bg);border-left-color:var(--accent);font-weight:500;}
+  .nav-item i{font-size:17px;width:18px;text-align:center;}
+  .nav-item.disabled{opacity:.5;cursor:default;}
+  .nav-section{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);padding:14px 20px 6px;}
+  .main{flex:1;padding:64px 36px 28px;max-width:1180px;}
+  .user-badge{position:fixed;top:0;right:0;left:var(--sidebar-w);height:56px;z-index:1000;display:flex;align-items:center;justify-content:flex-end;gap:10px;background:var(--bg);padding:0 32px;pointer-events:none;}
+  .user-badge > *{pointer-events:auto;}
+  .user-avatar{width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;flex-shrink:0;}
+  .user-info{line-height:1.25;text-align:right;}
+  .user-name{font-size:13px;font-weight:600;color:var(--text);}
+  .user-role{font-size:11.5px;color:var(--text-muted);}
+  .crumb{font-size:12px;color:var(--text-muted);margin-bottom:6px;}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:16px;}
+  h1{font-size:21px;font-weight:600;margin:0;}
+  .pill{font-size:12px;padding:4px 11px;border-radius:20px;background:var(--accent-bg);color:var(--accent);white-space:nowrap;font-weight:500;}
+  .pill.dim{background:var(--surface-alt);color:var(--text-2);}
+  .pill.approved{background:var(--success-bg);color:var(--success-text);}
+  .contour-switch{display:flex;gap:8px;margin-bottom:12px;}
+  .contour-btn{flex:1;text-align:left;border:1px solid var(--border);background:var(--surface);border-radius:var(--radius);padding:10px 14px;cursor:pointer;font-family:inherit;}
+  .contour-btn .t1{font-size:12px;color:var(--text-muted);}
+  .contour-btn .t2{font-size:13.5px;font-weight:500;color:var(--text);margin-top:1px;}
+  .contour-btn.active{border-color:var(--accent);background:var(--accent-bg);}
+  .contour-btn.active .t1{color:var(--accent);}
+  .contour-btn.active .t2{color:var(--accent);}
+  .subrow{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
+  .subrow-label{font-size:12px;color:var(--text-muted);white-space:nowrap;}
+  .ctx-select{min-width:260px;}
+  .segmented{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .segmented button{border:none;background:var(--surface);padding:0 14px;height:34px;font-size:13px;color:var(--text-2);cursor:pointer;font-family:inherit;}
+  .segmented button.active{background:var(--accent);color:#fff;}
+  .segmented.right{margin-left:auto;}
+  .toolbar{display:flex;gap:8px;margin:14px 0 18px;flex-wrap:wrap;align-items:center;}
+  select,input[type=text]{height:34px;border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:0 10px;font-family:inherit;font-size:13px;color:var(--text);}
+  input[type=text]{flex:1;min-width:180px;}
+  .btn{height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .btn:hover{background:var(--surface-alt);}
+  .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn-primary:hover{background:var(--accent-hover);}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;padding:11px 14px;font-weight:500;color:var(--text-2);background:var(--surface-alt);font-size:12.5px;}
+  td{padding:11px 14px;border-top:1px solid var(--border);}
+  tr.row{cursor:pointer;}
+  tr.row:hover td{background:var(--surface-alt);}
+  .badge{font-size:11.5px;padding:3px 10px;border-radius:6px;font-weight:500;border:1px solid transparent;white-space:nowrap;}
+  .filter-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:5px 8px 5px 12px;border-radius:16px;background:var(--accent-bg);color:var(--accent);font-weight:500;white-space:nowrap;}
+  .filter-chip .chip-x{display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;cursor:pointer;font-size:12px;line-height:1;color:var(--accent);background:rgba(30,79,163,.12);}
+  .filter-chip .chip-x:hover{background:rgba(30,79,163,.22);}
+  .badge.high{background:var(--danger-bg);color:var(--danger-text);border-color:var(--danger-border);}
+  .badge.mid{background:var(--warning-bg);color:var(--warning-text);border-color:var(--warning-border);}
+  .badge.low{background:var(--success-bg);color:var(--success-text);border-color:var(--success-border);}
+  .badge.direct{background:var(--direct-bg);color:var(--direct-text);border-color:var(--direct-border);}
+  .badge.sent{background:var(--accent-bg);color:var(--accent);}
+  .badge.neutral{background:var(--surface-alt);color:var(--text-2);}
+  .cards{display:flex;flex-direction:column;gap:8px;}
+  .obj-card{display:flex;align-items:center;gap:14px;padding:13px 16px;border-radius:var(--radius);border:1px solid var(--border);border-left:3px solid var(--border);background:var(--surface);cursor:pointer;}
+  .obj-card:hover{background:var(--surface-alt);}
+  .obj-card.high{border-left-color:#C94A44;}
+  .obj-card.mid{border-left-color:#C98A1E;}
+  .obj-card.low{border-left-color:#3FA35C;}
+  .obj-card.direct{border-left-color:#2C2C2A;}
+  .obj-title{font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .obj-sub{font-size:12px;color:var(--text-2);margin-top:2px;}
+  .footer-row{display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:12.5px;color:var(--text-2);}
+  .icon-btn{width:30px;height:30px;border-radius:7px;border:1px solid var(--border);background:var(--surface);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2);}
+  .icon-btn.disabled{opacity:.35;cursor:not-allowed;pointer-events:none;}
+  .page-num{min-width:30px;height:30px;padding:0 4px;border-radius:7px;border:1px solid transparent;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2);font-size:13px;font-weight:500;}
+  .page-num:hover{background:var(--surface-alt);}
+  .page-num.active{background:var(--accent);color:#fff;}
+  .page-ellipsis{width:20px;text-align:center;color:var(--text-muted);font-size:13px;}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:0 0 18px;}
+  .kpi{border-radius:var(--radius);padding:14px 16px;}
+  .kpi .lbl{font-size:12.5px;} .kpi .val{font-size:22px;font-weight:600;margin-top:3px;}
+  .kpi.neutral{background:var(--surface-alt);} .kpi.neutral .lbl{color:var(--text-2);}
+  .kpi.high{background:var(--danger-bg);} .kpi.high .lbl,.kpi.high .val{color:var(--danger-text);}
+  .kpi.mid{background:var(--warning-bg);} .kpi.mid .lbl,.kpi.mid .val{color:var(--warning-text);}
+  .kpi.low{background:var(--success-bg);} .kpi.low .lbl,.kpi.low .val{color:var(--success-text);}
+  .kpi.direct{background:var(--direct-bg);} .kpi.direct .lbl,.kpi.direct .val{color:#fff;}
+  .screen{display:none;} .screen.active{display:block;}
+  .back-link{display:inline-flex;align-items:center;gap:8px;color:var(--text);background:var(--surface);border:1px solid var(--border);text-decoration:none;font-size:14px;font-weight:600;margin-bottom:16px;padding:9px 16px;border-radius:9px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.04);transition:background .15s,border-color .15s;}
+  .back-link:hover{background:var(--surface-alt);border-color:var(--accent);}
+  .back-link i{font-size:17px;}
+  .back-link:hover{color:var(--accent);}
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0;}
+  .stat{background:var(--surface-alt);border-radius:var(--radius);padding:14px 16px;}
+  .stat .lbl{font-size:12px;color:var(--text-2);} .stat .val{font-size:20px;font-weight:600;margin-top:3px;}
+  .crit-row{display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:8px;padding:10px 13px;margin-bottom:7px;}
+  .crit-code{font-size:11px;color:var(--text-muted);min-width:100px;}
+  .crit-name{flex:1;font-size:13px;}
+  .crit-val{font-size:12.5px;color:var(--text-2);white-space:nowrap;}
+  .crit-tag{font-size:11px;padding:2px 8px;border-radius:6px;background:var(--surface-alt);color:var(--text-2);white-space:nowrap;}
+  .detail-header{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;}
+  .detail-sub{font-size:12px;color:var(--text-muted);margin-bottom:4px;}
+  .section-title{font-size:14px;font-weight:600;margin:20px 0 10px;}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;}
+  .note{font-size:12.5px;color:var(--text-2);background:var(--accent-bg);border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;}
+  .selection-bar{display:flex;align-items:center;gap:12px;background:var(--accent-bg);border:1px solid var(--accent);border-radius:var(--radius);padding:10px 16px;margin-bottom:16px;font-size:13px;}
+  .selection-bar .spacer{margin-left:auto;display:flex;gap:8px;}
+  .tag-mini{font-size:10.5px;padding:1px 7px;border-radius:5px;background:var(--surface-alt);color:var(--text-2);white-space:nowrap;font-weight:400;}
+  .field label{font-size:12.5px;color:var(--text-2);display:block;margin-bottom:4px;}
+  .pipeline{display:flex;align-items:stretch;gap:8px;padding:14px 18px 18px;flex-wrap:wrap;}
+  .pipeline-step{background:var(--surface-alt);border-radius:10px;padding:10px 12px;flex:1;min-width:128px;}
+  .pipeline-step.final{background:var(--accent-bg);}
+  .pipeline-step .ps-num{width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-bottom:7px;}
+  .pipeline-step .ps-title{font-size:12.5px;font-weight:600;margin-bottom:3px;}
+  .pipeline-step .ps-desc{font-size:11px;color:var(--text-2);line-height:1.35;}
+  .pipeline-arrow{display:flex;align-items:center;color:var(--text-muted);font-size:16px;flex-shrink:0;}
+  textarea{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:13px;resize:vertical;width:100%;}
+</style>
+<link rel="stylesheet" href="saq-theme.css?v=20260908-prof">
+</head>
+<body>
+<header class="user-badge">
+  <div class="shell-heading">
+    <span class="shell-context">Система управления рисками</span>
+    <strong id="shell-page-title">Перечень объектов</strong>
+    <span class="shell-subtitle" id="shell-subtitle">СУР ЭВГА</span>
+  </div>
+  <div class="shell-actions">
+    <span class="shell-language">RU</span>
+    <div class="shell-user">
+      <div class="user-info"><div class="user-name">Жукенов Каримжан Амангельдыевич</div><div class="user-role">Пользователь СУР</div></div>
+      <div class="user-avatar" aria-hidden="true">ЖК</div>
+    </div>
+    <a class="header-action" href="http://89.126.192.16/">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="4" height="4" rx=".5"/><rect x="10" y="2" width="4" height="4" rx=".5"/><rect x="2" y="10" width="4" height="4" rx=".5"/><rect x="10" y="10" width="4" height="4" rx=".5"/></svg>Главное меню
+    </a>
+    <button type="button" class="header-action" id="logout-button">Выйти</button>
+  </div>
+</header>
+<section class="login-screen" id="login-screen" hidden aria-labelledby="login-title">
+  <div class="login-card">
+    <img src="assets/saq-logo.png" alt="Логотип SAQ" width="80" height="54">
+    <h1 id="login-title">Система управления рисками</h1>
+    <p>Вы вышли из модуля.</p>
+    <button type="button" class="btn btn-primary" id="login-button">Войти в СУР</button>
+    <a class="header-action" href="http://89.126.192.16/">Главное меню</a>
+  </div>
+</section>
+<div class="app">
+
+  <div class="sidebar">
+    <a class="brand" href="http://89.126.192.16/" aria-label="Главная страница SAQ"><img class="brand-logo" src="assets/saq-logo.png" alt="Логотип SAQ" width="60" height="40"><span class="brand-copy"><strong class="brand-name">SAQ</strong><span class="brand-sub" title="Система государственного аудита">Система государственного аудита</span></span></a>
+    <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="Свернуть меню" aria-expanded="true" aria-controls="sur-navigation">‹</button>
+    <nav class="sur-navigation" id="sur-navigation" aria-label="Навигация СУР">
+    <div class="nav-section">Направления СУР</div>
+    <button type="button" class="nav-item nav-module active" id="mod-sur-evga" onclick="selectSurModule('b')" title="СУР ЭВГА"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3-8 3v6c0 5 8 9 8 9s8-4 8-9V6z"/><path d="m8 12 3 3 5-6"/></svg><span class="nav-label">СУР ЭВГА</span></button>
+    <button type="button" class="nav-item nav-module" id="mod-sur-pk" onclick="selectSurModule('a')" title="СУР Проф.контроль"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3-8 3v6c0 5 8 9 8 9s8-4 8-9V6z"/><path d="m8 12 3 3 5-6"/></svg><span class="nav-label">СУР Проф.контроль</span></button>
+    <div class="nav-section" id="nav-section-sur">Работа с рисками</div>
+    <div class="sur-subnav">
+    <button type="button" class="nav-item active" id="nav-check" onclick="showWorkspace('check')" title="Проверка"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h1m3 0h5m-9 4h1m3 0h5m-9 4h1m3 0h5"/></svg><span class="nav-label">Проверка</span></button>
+    <button type="button" class="nav-item" id="nav-criteria" onclick="showScreen('criteria')" title="Реестр критериев"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10m4 0h2M4 17h2m4 0h10M14 5v4M6 15v4"/></svg><span class="nav-label">Реестр критериев</span></button>
+    <button type="button" class="nav-item" id="nav-history" onclick="showScreen('history')" title="История расчётов"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11a9 9 0 1 1 2.5 7M3 4v7h7m2-4v6l4 2"/></svg><span class="nav-label">История расчётов</span></button>
+    <button type="button" class="nav-item" id="nav-integrations" onclick="showScreen('integrations')" title="Источники данных"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M5 13l6 6-3 3-6-6zm8-8 6 6 3-3-6-6zM9 9l-3 3m9-9-3 3m3 9-3 3m6-6-3 3"/></svg><span class="nav-label">Источники данных</span></button>
+    <button type="button" class="nav-item" id="nav-analytics" onclick="showScreen('analytics')" title="Аналитика"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3v18h17M8 16v-5m5 5V7m5 9V4"/></svg><span class="nav-label">Аналитика</span></button>
+      </div>
+    </nav>
+  </div>
+
+  <div class="main">
+
+    <!-- ============ ЭКРАН: ПЕРЕЧЕНЬ / ПРОВЕРКА ============ -->
+    <div id="screen-list" class="screen active">
+
+      <div id="view-list">
+        <div class="crumb" id="crumb">СУР ЭВГА / Проверка</div>
+        <div class="topbar">
+          <h1 id="page-title">Перечень объектов</h1>
+          <span class="pill" id="page-pill">—</span>
+        </div>
+
+        <div class="subrow" id="row-context" style="justify-content:flex-end;">
+          <div class="segmented" id="perechen-mode-switch">
+            <button id="btn-mode-subjects" class="active" onclick="setPerechenMode('subjects')">По субъектам</button>
+            <button id="btn-mode-abp" onclick="setPerechenMode('abp')">По АБП</button>
+            <button id="btn-mode-forms" onclick="setPerechenMode('forms')">Выходные формы</button>
+          </div>
+        </div>
+
+        <div class="subrow" id="row-checktype-tabs" style="display:none;">
+          <div class="segmented" id="checktype-mode-switch">
+            <button id="btn-checktype-visit" class="active" onclick="setChecktypeMode('visit')">Проф.контроль</button>
+            <button id="btn-checktype-compliance" onclick="setChecktypeMode('compliance')">Аудит соответствия</button>
+          </div>
+        </div>
+
+        <!-- ЭВГА: запуск оценки рисков -->
+        <div class="card" id="evga-calc-panel" style="padding:14px 18px;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <i class="ti ti-calculator" style="font-size:20px;color:var(--accent);"></i>
+              <div>
+                <div style="font-size:13px;font-weight:500;">Оценка рисков ЭВГА (индикаторы → пороги → скоринг → уровень риска)</div>
+                <div style="font-size:12px;color:var(--text-muted);" id="evga-calc-status-line">Последний расчёт: —</div>
+              </div>
+            </div>
+            <div class="spacer" style="margin-left:auto;">
+              <button class="btn btn-primary" id="evga-calc-run-btn" onclick="runEvgaRiskAssessment()"><i class="ti ti-refresh"></i>Запустить оценку рисков</button>
+            </div>
+          </div>
+        </div>
+        <div class="note" id="evga-calc-note" style="display:none;"></div>
+
+        <!-- Не рассчитанные объекты аудита -->
+        <div class="card" id="not-calculated-panel" style="display:none;padding:14px 18px;margin-bottom:16px;border-color:var(--warning-border);">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+            <i class="ti ti-alert-triangle" style="font-size:18px;color:var(--warning-text);"></i>
+            <div style="font-size:13px;font-weight:500;">Не рассчитанные объекты аудита</div>
+            <span class="badge mid" id="not-calculated-count" style="margin-left:auto;"></span>
+          </div>
+          <table>
+            <thead><tr><th>Объект аудита</th><th>Индикатор риска</th><th>Недостающие данные</th></tr></thead>
+            <tbody id="not-calculated-body"></tbody>
+          </table>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:10px;">В расчёте участвуют все объекты, по которым найдены необходимые данные. Объекты с недостатком данных по отдельному индикатору хранятся здесь и не входят в итоговый перечень до устранения причины. Таблица обновляется после каждого запуска оценки рисков.</div>
+        </div>
+
+        <!-- Проф. контроль: интеграция с dfo.kz -->
+        <div class="card" id="dfo-import-panel" style="display:none;padding:14px 18px;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <i class="ti ti-plug-connected" style="font-size:20px;color:var(--accent);"></i>
+              <div>
+                <div style="font-size:13px;font-weight:500;">Интеграция с dfo.kz (портал ИУЦ)</div>
+                <div style="font-size:12px;color:var(--text-muted);" id="dfo-status-line">Последний импорт: —</div>
+              </div>
+            </div>
+            <div class="spacer" style="margin-left:auto;display:flex;gap:16px;align-items:center;">
+              <div style="font-size:12px;color:var(--text-2);" id="dfo-meta-line"></div>
+              <button class="btn btn-primary" id="dfo-import-btn" onclick="importDfo()"><i class="ti ti-download"></i>Импортировать новый пакет</button>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <i class="ti ti-calculator" style="font-size:20px;color:var(--accent);"></i>
+              <div>
+                <div style="font-size:13px;font-weight:500;">Расчёт СУР (формулы SC / SP / R)</div>
+                <div style="font-size:12px;color:var(--text-muted);" id="calc-status-line">Последний расчёт: —</div>
+              </div>
+            </div>
+            <div class="spacer" style="margin-left:auto;">
+              <button class="btn" id="calc-run-btn" onclick="runCandidateCheck()"><i class="ti ti-refresh"></i>Проверить кандидатов</button>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <i class="ti ti-file-spreadsheet" style="font-size:20px;color:var(--accent);"></i>
+              <div>
+                <div style="font-size:13px;font-weight:500;">Ручная загрузка пакета (имитация интеграции с dfo.kz)</div>
+                <div style="font-size:12px;color:var(--text-muted);">Excel-выгрузка dfo.kz (Сводка/Субъекты/Отчёты) — реальный расчёт SC по фактическим статусам и содержимому отчётов</div>
+              </div>
+            </div>
+            <div class="spacer" style="margin-left:auto;">
+              <input type="file" id="dfo-manual-file" accept=".xlsx" style="display:none;" onchange="handleManualDfoUpload(event)">
+              <button class="btn" id="dfo-manual-btn" onclick="document.getElementById('dfo-manual-file').click()"><i class="ti ti-upload"></i>Загрузить файл dfo.kz</button>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <i class="ti ti-clipboard-check" style="font-size:20px;color:var(--accent);"></i>
+              <div>
+                <div style="font-size:13px;font-weight:500;">Оценки внешнего контроля качества (Профессиональный совет по аудиторской деятельности)</div>
+                <div style="font-size:12px;color:var(--text-muted);">Данные не поступают через dfo.kz — Профсовет направляет оценку по 5-балльной шкале напрямую в Управление координации КВГА</div>
+              </div>
+            </div>
+            <div class="spacer" style="margin-left:auto;">
+              <input type="file" id="vkk-manual-file" accept=".xlsx" style="display:none;" onchange="handleVkkUpload(event)">
+              <button class="btn" id="vkk-manual-btn" onclick="document.getElementById('vkk-manual-file').click()"><i class="ti ti-upload"></i>Загрузить файл оценок</button>
+            </div>
+          </div>
+        </div>
+        <div class="note" id="dfo-import-note" style="display:none;"></div>
+        <div class="note" id="dfo-manual-note" style="display:none;"></div>
+        <div class="note" id="vkk-note" style="display:none;"></div>
+
+        <div id="subjects-content-wrap">
+        <div class="kpi-grid" id="kpi-grid"></div>
+
+        <div class="note" id="edit-mode-banner" style="display:none;">
+          <span id="edit-mode-text"></span>
+          <a href="#" onclick="cancelAddToGroup(); return false;" style="margin-left:8px;">Отменить и вернуться</a>
+        </div>
+
+        <div class="selection-bar" id="selection-bar" style="display:none;">
+          <span><strong id="selection-count">0</strong> объектов выбрано</span>
+          <div class="spacer">
+            <button class="btn btn-primary" id="selection-action-btn" onclick="sendSelectedToModule()"><i class="ti ti-send"></i>Отправить в модуль</button>
+            <button class="btn" onclick="clearSelection()">Снять выбор</button>
+          </div>
+        </div>
+        <div class="note" id="send-module-note" style="display:none;"></div>
+
+        <div class="toolbar">
+          <select id="f-year" onchange="applyFilters()">
+            <option value="">Все годы</option>
+            <option value="2026">2026 год</option>
+            <option value="2025">2025 год</option>
+            <option value="2024">2024 год</option>
+          </select>
+          <select id="f-type" onchange="applyFilters()"></select>
+          <select id="f-checktype" onchange="applyFilters()" style="display:none;"></select>
+          <select id="f-risk" onchange="applyFilters()"></select>
+          <input type="text" id="f-search" placeholder="Поиск по наименованию" oninput="applyFilters()">
+          <button class="btn" onclick="exportCSV()"><i class="ti ti-download"></i>Экспорт</button>
+        </div>
+
+        <div id="table-wrap" class="card">
+          <table>
+            <thead><tr id="table-head-row"></tr></thead>
+            <tbody id="table-body"></tbody>
+          </table>
+        </div>
+
+        <div class="footer-row">
+          <span id="count-label">—</span>
+          <div id="pagination" style="display:flex;align-items:center;gap:4px;"></div>
+        </div>
+        </div>
+
+        <div id="forms-panel" style="display:none;">
+          <div style="margin-bottom:12px;">
+            <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:4px;">Выходные формы</div>
+            <div style="font-size:12.5px;color:var(--text-2);">в соответствии с подпунктом 10 статьи 14 Закона Республики Казахстан от 12 ноября 2015 года «О государственном аудите и финансовом контроле»</div>
+          </div>
+          <div id="chk-selections-bar" style="display:none;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px;"></div>
+          <div class="card" style="padding:18px 20px;margin-bottom:16px;">
+            <div class="field" style="max-width:280px;margin-bottom:12px;">
+              <label>Форма</label>
+              <select id="chk-form-type" onchange="onFormsTypeChange()" style="width:100%;">
+                <option value="app2_arbp">Приложение 2</option>
+                <option value="app3_abp">Приложение 3</option>
+                <option value="app5_sample">Приложение 5</option>
+                <option value="app6_abprisk">Приложение 6</option>
+              </select>
+            </div>
+            <div id="chk-form-desc" style="font-size:12.5px;color:var(--text-2);font-style:italic;margin-bottom:16px;min-height:16px;"></div>
+
+            <div id="chk-filter-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:6px;">
+              <div class="field" id="chk-f-year-wrap">
+                <label>Год</label>
+                <select id="chk-f-year" style="width:100%;" onchange="updateFormFilter('year', this.value)">
+                  <option value="2024">2024</option>
+                  <option value="2025" selected>2025</option>
+                  <option value="2026">2026</option>
+                </select>
+              </div>
+              <div class="field" id="chk-f-risk-wrap">
+                <label>Уровень риска</label>
+                <select id="chk-f-risk" style="width:100%;" onchange="updateFormFilter('risk', this.value)">
+                  <option value="">Все уровни</option>
+                  <option value="high">Высокий</option>
+                  <option value="mid">Средний</option>
+                  <option value="low">Низкий</option>
+                </select>
+              </div>
+              <div class="field" id="chk-f-audittype-wrap">
+                <label>Тип аудита</label>
+                <select id="chk-f-audittype" style="width:100%;" onchange="updateFormFilter('auditType', this.value)">
+                  <option value="">АС и АФО</option>
+                  <option value="АС">АС</option>
+                  <option value="АФО">АФО</option>
+                </select>
+              </div>
+              <div class="field" id="chk-f-region-wrap">
+                <label>Регион</label>
+                <select id="chk-f-region" style="width:100%;" onchange="updateFormFilter('region', this.value)"></select>
+              </div>
+              <div class="field" id="chk-f-search-wrap">
+                <label>Поиск по наименованию</label>
+                <input type="text" id="chk-f-search" placeholder="Начните вводить..." oninput="updateFormFilter('search', this.value)">
+              </div>
+            </div>
+            <div id="chk-app5-lookup" style="display:none;margin-bottom:14px;">
+              <div style="display:grid;grid-template-columns:minmax(180px,260px) 1fr;gap:12px;">
+                <div class="field">
+                  <label>БИН объекта контроля</label>
+                  <input type="text" id="chk-f-bin" placeholder="Например 000140002861" oninput="updateFormFilter('bin', this.value)">
+                </div>
+                <div class="field">
+                  <label>Наименование объекта контроля</label>
+                  <input type="text" id="chk-f-app5name" placeholder="Начните вводить полное или частичное наименование объекта контроля..." oninput="updateFormFilter('search', this.value)">
+                </div>
+              </div>
+            </div>
+            <div class="actions" style="margin-top:0;">
+              <button class="btn btn-primary" id="chk-generate-btn" onclick="generateFormReport()"><i class="ti ti-report"></i>Сформировать</button>
+              <button class="btn" id="chk-export-btn" onclick="exportFormReport()" disabled style="opacity:.5;cursor:not-allowed;"><i class="ti ti-download"></i>Экспортировать в CSV</button>
+            </div>
+          </div>
+          <div id="chk-result"></div>
+        </div>
+      </div>
+
+      <div id="view-perechen-main" style="display:none;">
+        <div class="crumb">СУР / Перечень</div>
+        <div class="topbar">
+          <h1>Перечень</h1>
+          <span class="pill" id="perechen-contour-pill">—</span>
+        </div>
+        <p style="color:var(--text-2);font-size:13px;margin-bottom:16px;">Работа с готовыми перечнями — от проекта (аудиторское мероприятие / полугодовой список) до утверждённого документа. Контур переключается на вкладке «Проверка».</p>
+        <div class="segmented" style="margin-bottom:16px;">
+          <button class="active" id="ptab-draft" onclick="setPerechenTab('draft')">Проекты перечней</button>
+          <button id="ptab-approved" onclick="setPerechenTab('approved')">Утверждённые перечни</button>
+        </div>
+        <div id="perechen-draft-content"></div>
+        <div id="perechen-approved-content" style="display:none;"></div>
+      </div>
+
+      <div id="view-detail" style="display:none;">
+        <a class="back-link" onclick="showList()"><i class="ti ti-arrow-left"></i>Назад</a>
+        <div class="card" style="padding:20px 24px;">
+          <div class="detail-header">
+            <div>
+              <div class="detail-sub" id="d-sub">—</div>
+              <h1 id="d-title">—</h1>
+            </div>
+            <span class="badge" id="d-badge">—</span>
+          </div>
+
+          <div class="stat-grid" id="top-stat-grid">
+            <div class="stat"><div class="lbl" id="d-score-lbl">Балл</div><div class="val" id="d-score">—</div></div>
+            <div class="stat"><div class="lbl" id="d-thresh-lbl">Порог</div><div class="val" id="d-thresh-val">—</div></div>
+            <div class="stat"><div class="lbl" id="d-count-lbl">Сработало критериев</div><div class="val" id="d-critcount">—</div></div>
+            <div class="stat"><div class="lbl">Отчётный год</div><div class="val" id="d-year">—</div></div>
+          </div>
+
+          <div id="requisites-block">
+            <div class="section-title">Реквизиты объекта</div>
+            <div class="stat-grid" style="margin-top:0;">
+              <div class="stat"><div class="lbl">БИН</div><div class="val mono" id="d-bin" style="font-size:15px;">—</div></div>
+              <div class="stat"><div class="lbl">Код ГУ</div><div class="val mono" id="d-gucode" style="font-size:15px;">—</div></div>
+              <div class="stat"><div class="lbl">Статус объекта</div><div class="val" id="d-status" style="font-size:14px;">—</div></div>
+              <div class="stat"><div class="lbl">Тип субъекта</div><div class="val" id="d-subjtype" style="font-size:15px;">—</div></div>
+              <div class="stat"><div class="lbl">Область / район</div><div class="val" id="d-region" style="font-size:14px;">—</div></div>
+              <div class="stat"><div class="lbl">Уровень риска АБП</div><div class="val" id="d-abprisk" style="font-size:14px;">—</div></div>
+              <div class="stat"><div class="lbl">Дата и тип посл. проверки</div><div class="val" id="d-lastinsp" style="font-size:14px;">—</div></div>
+              <div class="stat"><div class="lbl">Финансирование, млн тенге</div><div class="val" id="d-financing" style="font-size:13px;line-height:1.4;">—</div></div>
+            </div>
+          </div>
+
+          <div id="requisites-block-a">
+            <div class="section-title">Реквизиты объекта</div>
+            <div class="stat-grid" style="margin-top:0;">
+              <div class="stat"><div class="lbl">БИН</div><div class="val mono" id="da-bin" style="font-size:15px;">—</div></div>
+              <div class="stat"><div class="lbl">Категория субъекта</div><div class="val" id="da-category" style="font-size:14px;">—</div></div>
+              <div class="stat"><div class="lbl">Статус объекта</div><div class="val" id="da-status" style="font-size:14px;">—</div></div>
+              <div class="stat"><div class="lbl">Регион</div><div class="val" id="da-region" style="font-size:14px;">—</div></div>
+              <div class="stat"><div class="lbl">Категория предпринимательства</div><div class="val" id="da-bizcat" style="font-size:14px;">—</div></div>
+              <div class="stat"><div class="lbl">Дата и тип посл. проверки</div><div class="val" id="da-lastaudit" style="font-size:14px;">—</div></div>
+              <div class="stat"><div class="lbl">Отчётный год</div><div class="val" id="da-year" style="font-size:14px;">—</div></div>
+            </div>
+          </div>
+
+          <div id="calc-breakdown" style="display:none;">
+            <div class="section-title">Расчёт СУР</div>
+            <div class="stat-grid">
+              <div class="stat"><div class="lbl">Объективный риск</div><div class="val" id="cb-objrisk" style="font-size:14px;line-height:1.35;">—</div></div>
+              <div class="stat"><div class="lbl">Предыдущий контроль, SP</div><div class="val" id="cb-sp">—</div></div>
+              <div class="stat"><div class="lbl">Критерии мониторинга, SC</div><div class="val" id="cb-sc">—</div></div>
+              <div class="stat"><div class="lbl">Итоговый показатель, R</div><div class="val" id="cb-r">—</div></div>
+            </div>
+            <div class="crit-row" style="justify-content:space-between;font-size:12.5px;color:var(--text-2);">
+              <span id="cb-step1">SC = Σ(wi × xi) = —</span>
+              <span id="cb-step2">Rпром = SP + SC = —</span>
+              <span id="cb-step3">R = ((Rпром−Rmin)/(Rmax−Rmin))×100 = —</span>
+            </div>
+          </div>
+
+          <div class="section-title" id="d-crit-title">Сработавшие критерии</div>
+          <div id="d-crit"></div>
+
+          <div class="actions" id="actions-normal">
+            <button class="btn" id="d-action-history" onclick="toggleScoreHistory()"><i class="ti ti-chart-line"></i>История баллов</button>
+          </div>
+
+          <div id="score-history-panel" style="display:none;margin-top:16px;">
+            <div class="card" style="padding:16px 18px;">
+              <div style="font-size:13px;font-weight:500;margin-bottom:10px;" id="score-history-title">История баллов по годам</div>
+              <div id="score-history-bars"></div>
+            </div>
+          </div>
+
+          <div id="exclude-form" style="display:none;margin-top:16px;">
+            <div class="card" style="padding:16px;background:var(--surface-alt);">
+              <div class="field"><label>Причина исключения (обязательно для аудит-лога)</label>
+                <textarea id="exclude-reason" rows="3" placeholder="Например: нарушения устранены в полном объёме по итогам предыдущей проверки (п.13 приказа №298/45)"></textarea>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:10px;">
+                <button class="btn btn-primary" onclick="confirmExclude()"><i class="ti ti-check"></i>Подтвердить исключение</button>
+                <button class="btn" onclick="cancelExclude()">Отмена</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="exclude-confirmed" class="note" style="display:none;margin-top:16px;"></div>
+        </div>
+      </div>
+
+      <div id="view-engagement" style="display:none;">
+        <a class="back-link" onclick="closeEngagementForm()"><i class="ti ti-arrow-left"></i>Назад</a>
+        <div class="card" style="padding:20px 24px;">
+          <h1 style="margin-bottom:4px;">Формирование аудиторского мероприятия</h1>
+          <div class="detail-sub" id="eng-context-label">—</div>
+
+          <div class="section-title">Отобранные объекты (<span id="eng-obj-count">0</span>)</div>
+          <div id="eng-obj-list" style="margin-bottom:8px;"></div>
+
+          <div id="eng-form-block">
+            <div class="section-title">Параметры мероприятия</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:640px;">
+              <div class="field" style="grid-column:1/-1;">
+                <label>Наименование аудиторского мероприятия</label>
+                <input type="text" id="eng-name" placeholder="Например: Государственный аудит соответствия использования бюджетных средств" style="width:100%;">
+              </div>
+              <div class="field">
+                <label>Тип аудита</label>
+                <select id="eng-type" style="width:100%;">
+                  <option>Аудит соответствия</option>
+                  <option>Аудит финансовой отчётности</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Срок проведения</label>
+                <select id="eng-quarter" style="width:100%;">
+                  <option>1 квартал</option><option>2 квартал</option><option>3 квартал</option><option>4 квартал</option>
+                  <option>2 квартал — 1 квартал след. года</option>
+                </select>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-primary" onclick="confirmEngagement()"><i class="ti ti-check"></i>Сформировать мероприятие</button>
+            </div>
+          </div>
+
+          <div id="eng-success" class="note" style="display:none;margin-top:16px;"></div>
+        </div>
+
+        <div class="topbar" style="margin-bottom:8px;">
+          <div class="section-title" style="margin:0;">Сформированные мероприятия (<span id="eng-total-count">0</span>)</div>
+          <button class="btn btn-primary" onclick="openFinalPerechen()"><i class="ti ti-file-check"></i>Перейти к итоговому перечню</button>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr>
+              <th>Наименование</th><th style="width:170px;">Тип аудита</th><th style="width:150px;">Срок</th>
+              <th style="width:90px;">Объектов</th><th style="width:220px;">Контекст</th>
+            </tr></thead>
+            <tbody id="eng-list-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="view-semiannual" style="display:none;">
+        <a class="back-link" onclick="closeSemiAnnualForm()"><i class="ti ti-arrow-left"></i>Назад</a>
+        <div class="card" style="padding:20px 24px;">
+          <h1 style="margin-bottom:4px;">Формирование полугодового списка</h1>
+          <div class="detail-sub">Проф. контроль</div>
+
+          <div class="section-title">Отобранные субъекты (<span id="sa-obj-count">0</span>)</div>
+          <div id="sa-obj-list" style="margin-bottom:8px;"></div>
+
+          <div id="sa-form-block">
+            <div class="section-title">Параметры списка</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:480px;">
+              <div class="field">
+                <label>Полугодие</label>
+                <select id="sa-period" style="width:100%;">
+                  <option>I полугодие</option><option>II полугодие</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Год</label>
+                <select id="sa-year" style="width:100%;">
+                  <option>2026</option><option>2027</option>
+                </select>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-primary" onclick="confirmSemiAnnual()"><i class="ti ti-check"></i>Сформировать список</button>
+            </div>
+          </div>
+
+          <div id="sa-success" class="note" style="display:none;margin-top:16px;"></div>
+        </div>
+
+        <div class="section-title">Сформированные полугодовые списки (<span id="sa-total-count">0</span>)</div>
+        <div class="card">
+          <table>
+            <thead><tr>
+              <th>Список</th><th style="width:130px;">Год</th><th style="width:90px;">Объектов</th>
+              <th style="width:130px;">Статус</th><th style="width:160px;"></th>
+            </tr></thead>
+            <tbody id="sa-list-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="view-group-detail" style="display:none;">
+        <a class="back-link" onclick="closeGroupDetail()"><i class="ti ti-arrow-left"></i>Назад</a>
+        <div class="card" style="padding:20px 24px;">
+          <div class="detail-header">
+            <div>
+              <div class="detail-sub" id="gd-meta">—</div>
+              <h1 id="gd-title">—</h1>
+            </div>
+            <span class="badge" id="gd-status">—</span>
+          </div>
+          <div class="stat-grid" style="grid-template-columns:repeat(1,max-content);">
+            <div class="stat"><div class="lbl">Объектов в составе</div><div class="val" id="gd-count">—</div></div>
+          </div>
+          <div class="section-title">Состав</div>
+          <div id="gd-objects"></div>
+          <div class="actions">
+            <button class="btn" id="gd-edit-btn" onclick="toggleGroupEdit()"><i class="ti ti-edit"></i>Редактировать</button>
+            <button class="btn btn-primary" id="gd-add-btn" style="display:none;" onclick="startAddToGroup()"><i class="ti ti-plus"></i>Добавить объекты</button>
+          </div>
+          <div class="note" id="gd-locked-note" style="display:none;"></div>
+          <div id="gd-amendments"></div>
+        </div>
+      </div>
+
+      <div id="view-final" style="display:none;">
+        <a class="back-link" onclick="closeFinalPerechen()"><i class="ti ti-arrow-left"></i>Назад к формированию мероприятий</a>
+        <div class="topbar">
+          <h1>Итоговый перечень объектов государственного аудита</h1>
+          <span class="pill" id="final-status-pill">Проект</span>
+        </div>
+        <p style="color:var(--text-2);font-size:13px;max-width:760px;margin-bottom:16px;">Сводный документ — все сформированные аудиторские мероприятия, сгруппированные по контексту (ДВГА / ЭВГА / СВА), с итогами по каждой группе. Соответствует структуре официального перечня, утверждаемого приказом председателя КВГА (раздел 6.11 ТЗ).</p>
+
+        <div id="final-groups"></div>
+
+        <div class="card" style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+          <div style="font-size:13.5px;"><strong>ВСЕГО:</strong> <span id="final-total-eng">0</span> мероприятий, <span id="final-total-obj">0</span> объектов</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn" id="final-export-btn" onclick="exportApprovedPerechen()" title="Доступно после утверждения" disabled style="opacity:.5;cursor:not-allowed;"><i class="ti ti-file-spreadsheet"></i>Выгрузить перечень (Excel)</button>
+            <button class="btn btn-primary" onclick="approvePerechen()"><i class="ti ti-stamp"></i>Утвердить перечень</button>
+          </div>
+        </div>
+
+        <div id="final-approved-note" class="note" style="display:none;margin-top:16px;"></div>
+      </div>
+    </div>
+
+    <!-- ============ ЭКРАН: РЕЕСТР КРИТЕРИЕВ ============ -->
+    <div id="screen-criteria" class="screen">
+      <div class="crumb" id="crit-crumb">Реестр критериев</div>
+      <div class="topbar">
+        <h1 id="crit-title">Реестр критериев</h1>
+        <span class="pill" id="crit-pill">ЭВГА</span>
+      </div>
+
+      <p style="color:var(--text-2);font-size:13px;max-width:760px;margin-bottom:16px;" id="crit-desc">Справочник критериев государственного аудита (ЭВГА/СВА) — код индикатора, категория объекта, логика скоринга. Версионируется; изменение веса или порога создаёт новую версию критерия (ФТ-2).</p>
+
+      <div class="toolbar" id="crit-toolbar-b" style="margin-top:0;">
+        <input type="text" id="crit-search-b" placeholder="Поиск по коду или наименованию" oninput="renderCriteriaB()" style="max-width:360px;">
+      </div>
+
+      <div class="card" id="crit-formula-b" style="margin-bottom:16px;">
+        <div style="padding:14px 18px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="toggleCritFormulaB()">
+          <div>
+            <div style="font-size:14px;font-weight:600;">Скоринг и пороги — как индикатор становится риском</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Разделы 6.6–6.9 ТЗ · пороги считаются перцентильно, внутри однородной группы — нажмите, чтобы раскрыть</div>
+          </div>
+          <span id="crit-formula-b-chevron" style="font-size:14px;color:var(--text-muted);transition:transform .15s;">▼</span>
+        </div>
+        <div id="crit-formula-b-body" style="display:none;">
+        <div class="pipeline">
+          <div class="pipeline-step">
+            <div class="ps-num">1</div><div class="ps-title">Сырое значение</div>
+            <div class="ps-desc">По формуле индикатора (C1/C2 и т.п.), за отчётный год</div>
+          </div>
+          <div class="pipeline-arrow"><i class="ti ti-arrow-right"></i></div>
+          <div class="pipeline-step">
+            <div class="ps-num">2</div><div class="ps-title">Пределы</div>
+            <div class="ps-desc">Fractile 0,25 / 0,75 по выборке года, отдельно для АБП / ГУ / КвазиГос</div>
+          </div>
+          <div class="pipeline-arrow"><i class="ti ti-arrow-right"></i></div>
+          <div class="pipeline-step">
+            <div class="ps-num">3</div><div class="ps-title">Скоринг</div>
+            <div class="ps-desc">Балл 1 / 2 / 3 (или 0 / 3) — правило зависит от типа логики</div>
+          </div>
+          <div class="pipeline-arrow"><i class="ti ti-arrow-right"></i></div>
+          <div class="pipeline-step">
+            <div class="ps-num">4</div><div class="ps-title">Сумма баллов</div>
+            <div class="ps-desc">По всем индикаторам объекта за 3 года</div>
+          </div>
+          <div class="pipeline-arrow"><i class="ti ti-arrow-right"></i></div>
+          <div class="pipeline-step">
+            <div class="ps-num">5</div><div class="ps-title">Пороги A / B</div>
+            <div class="ps-desc">Те же квартили 0,25 / 0,75, но уже по сумме баллов группы</div>
+          </div>
+          <div class="pipeline-arrow"><i class="ti ti-arrow-right"></i></div>
+          <div class="pipeline-step final">
+            <div class="ps-num">6</div><div class="ps-title">Уровень риска</div>
+            <div class="ps-desc">Высокий / Средний / Низкий → мера реагирования</div>
+          </div>
+        </div>
+
+        <div style="padding:4px 18px 2px;font-size:13px;font-weight:600;">Скоринг — правило перевода значения в балл</div>
+        <table>
+          <thead><tr><th style="width:170px;">Тип логики</th><th>Правило</th><th style="width:230px;">Пример</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge neutral">Базовая</span><br><span style="font-size:11px;color:var(--text-muted);">большинство индикаторов</span></td>
+                <td>Значение ≥ верхний предел → балл 3 · значение ≤ нижний предел → балл 1 · иначе → балл 2</td>
+                <td class="mono" style="font-size:12px;">RI-GU-ACC-01 — годовой объём финансирования</td></tr>
+            <tr><td><span class="badge neutral">Инвертированная</span></td>
+                <td>Значение ≥ верхний предел → балл 1 · значение ≤ нижний предел → балл 3 · иначе → балл 2 (направление обратное)</td>
+                <td class="mono" style="font-size:12px;">RI-GU-ACC-02 — освоение бюджета</td></tr>
+            <tr><td><span class="badge mid">Хардкод-группа</span></td>
+                <td>Любое ненулевое значение → сразу балл 3, независимо от квартилей</td>
+                <td class="mono" style="font-size:12px;">RI-GU-PRP-03 — занижение арендной платы</td></tr>
+            <tr><td><span class="badge high">Бинарная группа</span></td>
+                <td>max(значение)=1 → балл 3 · иначе → балл 0 (промежуточных баллов нет)</td>
+                <td class="mono" style="font-size:12px;">RI-GU-ACC-07 — отказ от выражения мнения</td></tr>
+          </tbody>
+        </table>
+
+        <div style="padding:16px 18px 2px;font-size:13px;font-weight:600;">Формирование перечня — от суммы баллов к категории риска</div>
+        <table>
+          <thead><tr><th style="width:190px;">Шаг</th><th>Формула / логика</th></tr></thead>
+          <tbody>
+            <tr><td class="mono" style="font-size:12px;">1. Баллы за период</td><td>Sum(баллы) по объекту за 3 года, в разрезе категория объекта × тип аудита</td></tr>
+            <tr><td class="mono" style="font-size:12px;">2. Пороги A и B</td><td>A = Fractile(баллы за период, 0,25); B = Fractile(баллы за период, 0,75) — внутри однородной группы</td></tr>
+            <tr><td class="mono" style="font-size:12px;">3. Уровень риска</td><td>Баллы ≤ A → Низкий · Баллы ≤ B → Средний · иначе → Высокий</td></tr>
+          </tbody>
+        </table>
+
+        <div style="padding:16px 18px 2px;font-size:13px;font-weight:600;">Меры реагирования по уровню риска (ТСУР)</div>
+        <table style="margin-bottom:2px;">
+          <thead><tr><th style="width:150px;">Уровень риска</th><th>Мера</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge high">Высокий</span></td><td>Директивная мера — объект обязательно включается в перечень аудита</td></tr>
+            <tr><td><span class="badge mid">Средний</span></td><td>Превентивная мера — уведомление объекту и вышестоящему органу без аудита; включение в перечень — при сохранении условий</td></tr>
+            <tr><td><span class="badge low">Низкий</span></td><td>Только мониторинг</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <div class="card" id="crit-table-b">
+        <table>
+          <thead><tr>
+            <th style="width:170px;">Код</th><th>Наименование</th>
+            <th style="width:120px;">Категория</th><th style="width:150px;">Тип логики</th><th style="width:260px;">Формула</th><th style="width:130px;">Статус</th>
+          </tr></thead>
+          <tbody id="criteria-b-body"></tbody>
+        </table>
+      </div>
+
+      <div class="toolbar" id="crit-toolbar-a" style="margin-top:0;display:none;">
+        <input type="text" id="crit-search-a" placeholder="Поиск по коду или наименованию" oninput="renderCriteriaA()" style="max-width:360px;">
+      </div>
+
+      <div class="card" id="crit-formula-a" style="display:none;margin-bottom:16px;">
+        <div style="padding:14px 18px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;" onclick="toggleCritFormulaA()">
+          <div>
+            <div style="font-size:14px;font-weight:600;">Формула расчёта — SP, SC, R</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Приказ №298/45, п.5.2 · одна для обоих видов проверки — нажмите, чтобы раскрыть</div>
+          </div>
+          <span id="crit-formula-a-chevron" style="font-size:14px;color:var(--text-muted);transition:transform .15s;">▼</span>
+        </div>
+        <div id="crit-formula-a-body" style="display:none;">
+          <table style="margin-top:0;">
+            <thead><tr><th style="width:230px;">Компонент</th><th>Формула</th></tr></thead>
+            <tbody>
+              <tr><td class="mono" style="font-size:12px;">Грубое нарушение (хотя бы одно)</td><td>SP = 100 автоматически (аналог «Прямого основания»), далее назначается проверка</td></tr>
+              <tr><td class="mono" style="font-size:12px;">SPз — значительные нарушения</td><td>SPз = (SP2 × 100 / SP1) × 0,7 — SP1: требуемое количество значительных нарушений (норматив), SP2: количество выявленных</td></tr>
+              <tr><td class="mono" style="font-size:12px;">SPн — незначительные нарушения</td><td>SPн = (SP2 × 100 / SP1) × 0,3 — SP1: требуемое количество незначительных нарушений (норматив), SP2: количество выявленных</td></tr>
+              <tr><td class="mono" style="font-size:12px;">SP (итог)</td><td>SP = SPз + SPн, если грубых нарушений не выявлено · шкала 0–100</td></tr>
+              <tr><td class="mono" style="font-size:12px;">SC (текущий период)</td><td>SC = Σ(wi × xi) — по весовой таблице ниже; деления на n нет</td></tr>
+              <tr><td class="mono" style="font-size:12px;">Rпром</td><td>Rпром = SP + SC</td></tr>
+              <tr><td class="mono" style="font-size:12px;">R (итоговый, нормализованный)</td><td>R = ((Rпром − Rmin) / (Rmax − Rmin)) × 100 — нормализация внутри однородной группы субъектов одной сферы контроля</td></tr>
+              <tr><td class="mono" style="font-size:12px;">Категория риска</td><td>71–100 — Высокий; 31–70 — Средний; категории «Низкий» для субъектов проф.контроля нет</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="segmented" id="crit-checktype-switch" style="display:none;margin-bottom:16px;">
+        <button id="crit-ct-visit" class="active" onclick="setCritChecktype('visit')">Проф.контроль с посещением</button>
+        <button id="crit-ct-compliance" onclick="setCritChecktype('compliance')">Аудит соответствия</button>
+      </div>
+
+      <div class="card" id="crit-table-a" style="display:none;">
+        <table>
+          <thead><tr>
+            <th style="width:90px;">Код</th><th>Показатель субъективного критерия</th>
+            <th style="width:200px;">wi / вес</th><th style="width:170px;">Условие</th>
+          </tr></thead>
+          <tbody id="criteria-a-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ============ ЭКРАН: ИСТОРИЯ РАСЧЁТОВ ============ -->
+    <div id="screen-history" class="screen">
+      <div class="crumb" id="history-crumb">История расчётов</div>
+      <div class="topbar">
+        <h1>История расчётов</h1>
+        <span class="pill">Журнал batch-запусков</span>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <table>
+          <thead><tr>
+            <th style="width:160px;">Дата и время</th><th>Контекст</th><th style="width:170px;">Инициатор</th>
+            <th style="width:100px;text-align:right;">Объектов</th><th style="width:110px;">Статус</th><th style="width:110px;">Длительность</th>
+          </tr></thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ============ ЭКРАН: ИСТОЧНИКИ ДАННЫХ ============ -->
+    <div id="screen-integrations" class="screen">
+      <div class="crumb" id="integrations-crumb">Источники данных</div>
+      <div class="topbar">
+        <h1>Источники данных</h1>
+        <span class="pill">Реестр интеграций</span>
+      </div>
+      <p style="color:var(--text-2);font-size:13px;max-width:760px;margin-bottom:16px;" id="integrations-desc">Системы, из которых модуль СУР забирает исходные данные для расчёта. Нажмите на систему, чтобы увидеть, какие именно таблицы и поля используются.</p>
+      <div id="integrations-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+    </div>
+
+    <!-- ============ ЭКРАН: АНАЛИТИКА ============ -->
+    <div id="screen-analytics" class="screen">
+      <div class="crumb" id="analytics-crumb">Аналитика</div>
+      <div class="topbar">
+        <h1>Аналитика</h1>
+        <span class="pill" id="analytics-pill">Дашборды и отчёты</span>
+      </div>
+      <div class="segmented" style="margin-bottom:16px;">
+        <button class="active" id="atab-dash" onclick="setAnalyticsTab('dash')">Дашборды</button>
+        <button id="atab-reports" onclick="setAnalyticsTab('reports')">Отчёты</button>
+      </div>
+
+      <!-- ---------- ДАШБОРДЫ ---------- -->
+      <div id="analytics-dash-content">
+        <div class="toolbar" style="margin-top:0;">
+          <select id="an-d-year" onchange="renderDashboard()">
+            <option value="">Все годы</option>
+            <option value="2026">2026 год</option>
+            <option value="2025">2025 год</option>
+            <option value="2024">2024 год</option>
+          </select>
+          <div class="segmented" id="an-chart-type-switch">
+            <button class="active" id="an-ct-bar" onclick="setDashChartType('bar')"><i class="ti ti-chart-bar"></i> Столбцы</button>
+            <button id="an-ct-pie" onclick="setDashChartType('pie')"><i class="ti ti-chart-pie"></i> Пирог</button>
+          </div>
+        </div>
+        <div class="kpi-grid" id="an-kpi-grid"></div>
+        <div id="an-charts"></div>
+      </div>
+
+      <!-- ---------- ОТЧЁТЫ ---------- -->
+      <div id="analytics-reports-content" style="display:none;">
+        <div class="card" style="padding:18px 20px;margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Параметры отчёта</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px;">
+            <div class="field">
+              <label>Источник данных</label>
+              <select id="rep-type" onchange="onReportTypeChange()" style="width:100%;">
+                <option value="perechen_b">Перечень объектов — ЭВГА</option>
+                <option value="perechen_a">Перечень объектов — Проф. контроль</option>
+                <option value="criteria_b">Реестр критериев — ЭВГА</option>
+                <option value="history">История расчётов</option>
+              </select>
+            </div>
+            <div class="field" id="rep-f-year-wrap">
+              <label>Год</label>
+              <select id="rep-f-year" style="width:100%;">
+                <option value="">Все годы</option>
+                <option value="2026">2026</option>
+                <option value="2025">2025</option>
+                <option value="2024">2024</option>
+              </select>
+            </div>
+            <div class="field" id="rep-f-risk-wrap">
+              <label>Уровень риска</label>
+              <select id="rep-f-risk" style="width:100%;">
+                <option value="">Все уровни</option>
+                <option value="high">Высокий</option>
+                <option value="mid">Средний</option>
+                <option value="low">Низкий</option>
+              </select>
+            </div>
+          </div>
+          <div class="actions" style="margin-top:0;">
+            <button class="btn btn-primary" onclick="generateReport()"><i class="ti ti-report"></i>Сформировать отчёт</button>
+            <button class="btn" id="rep-export-btn" onclick="exportReport()" disabled style="opacity:.5;cursor:not-allowed;"><i class="ti ti-download"></i>Экспортировать в CSV</button>
+          </div>
+        </div>
+        <div id="rep-result"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="assets/sur-01.js"></script>
+<script src="assets/sur-02.js"></script>
+<script src="assets/sur-03.js"></script>
+<script src="assets/sur-04.js"></script>
+<script src="assets/sur-05.js"></script>
+<script src="assets/sur-06.js"></script>
+<script src="assets/sur-07.js"></script>
+<script src="assets/sur-08.js"></script>
+<script src="saq-shell.js?v=20260908-prof"></script>
+</body>
+</html>
