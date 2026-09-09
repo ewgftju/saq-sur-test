@@ -1188,7 +1188,9 @@ function renderTable(){
     let checkboxCell = '';
     if(canGroup){
       if(sentTo){
-        checkboxCell = `<td onclick="event.stopPropagation()" title="Включён в отбор для «${sentTo}»"><i class="ti ti-circle-check" style="color:var(--positive-text, #2e7d32);"></i></td>`;
+        checkboxCell = currentContour === 'b'
+          ? `<td onclick="event.stopPropagation()"><button type="button" class="btn btn-outline" title="Исключить из отбора" aria-label="Исключить из отбора" onclick="removeFromSelection(${idx})">✓</button></td>`
+          : `<td onclick="event.stopPropagation()" title="Включён в отбор для «${sentTo}»"><i class="ti ti-circle-check" style="color:var(--positive-text, #2e7d32);"></i></td>`;
       } else if(!eligible){
         const ly = lastAuditYear(o);
         const age = subjectAgeYears(o);
@@ -1248,6 +1250,7 @@ function clearSelection(){
   renderTable(); renderCards();
 }
 function updateSelectionBar(){
+  renderSavedSelection();
   const bar = document.getElementById('selection-bar');
   const canGroup = perechenMode==='subjects';
   if(!canGroup || selectedIndices.size===0){ bar.style.display='none'; return; }
@@ -1259,9 +1262,10 @@ function updateSelectionBar(){
 function sendSelectedToModule(){
   const moduleName = currentContour==='b' ? 'ЭВГА' : 'Проф. контроль';
   const count = selectedIndices.size;
+  if (!count) return;
   selectedIndices.forEach(idx=>{
     const o = currentData[idx];
-    sentToModule[o.name] = moduleName;
+    if (o && isEligibleForSend(o)) sentToModule[o.name] = moduleName;
   });
   selectedIndices.clear();
   renderTable(); renderCards();
@@ -1269,8 +1273,27 @@ function sendSelectedToModule(){
   if(note){
     note.style.display = 'block';
     note.innerHTML = `<strong>Отбор сохранён.</strong> Включено объектов: ${count}. Назначение: «${moduleName}». <button type="button" class="btn btn-outline" onclick="exportSelectedObjects()">Скачать отбор</button>`;
-    saveSurDemo();
   }
+  saveSurDemo();
+  renderSavedSelection();
+}
+
+function renderSavedSelection(){
+  const note = document.getElementById('send-module-note');
+  if (!note || currentContour !== 'b') return;
+  const count = dataEVGA.filter(object => sentToModule[object.name] === 'ЭВГА').length;
+  note.style.display = count && perechenMode === 'subjects' ? 'block' : 'none';
+  if (count) note.innerHTML = `<strong>Отбор для ЭВГА: ${count} объектов.</strong> <button type="button" class="btn btn-outline" onclick="exportSelectedObjects()">Скачать отбор</button>`;
+}
+
+function removeFromSelection(idx){
+  if (currentContour !== 'b') return;
+  const object = currentData[idx];
+  if (!object || sentToModule[object.name] !== 'ЭВГА') return;
+  delete sentToModule[object.name];
+  selectedIndices.delete(idx);
+  saveSurDemo();
+  renderTable();
 }
 
 /* ---------- рендер: Перечень АБП ---------- */
