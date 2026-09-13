@@ -718,7 +718,7 @@ function runCandidateCheck(){
       const filtered = dataA.filter(o=>o.risk==='high' || o.risk==='direct').sort((a,b)=> b.score - a.score);
       dataA.length = 0;
       filtered.forEach(o=>dataA.push(o));
-      sentToModule = {};
+      sentToModule = Object.fromEntries(Object.entries(sentToModule).filter(([, moduleName]) => moduleName !== 'Проф. контроль'));
       selectedIndices.clear();
       document.getElementById('dfo-manual-note').style.display = 'none';
 
@@ -940,7 +940,7 @@ function runEvgaRiskAssessment(){
     const okCount = dataEVGA.length;
     note.innerHTML = `<strong>Оценка рисков ЭВГА завершена.</strong> Рассчитано ${okCount} из ${lastCalcEvga.count} объектов. ${notCalculatedList.length>0 ? pluralObjects(notCalculatedList.length)+' не рассчитано из-за недостающих данных по отдельным индикаторам — см. таблицу ниже.' : 'Недостающих данных не обнаружено, все объекты рассчитаны полностью.'} Перечень и уровни риска обновлены.${gapAffected>0 ? ` По индикатору «Длительное отсутствие аудиторских мероприятий» пересчитано ${gapAffected} объектов.` : ''}${salykAffected>0 ? ` По индикатору «Сверка с Салык.кз» пересчитано ${salykAffected} объектов.` : ''}${rotationAffected>0 ? ` По индикатору «Ротация аудиторов» пересчитано ${rotationAffected} объектов.` : ''}`;
     historyLog.unshift([dateStr, 'ЭВГА — оценка рисков (ручной запуск)', 'Аналитик СУР', String(lastCalcEvga.count), 'ok', `${((Date.now() - startedAt) / 1000).toFixed(1)} с`]);
-    renderKpis(); renderTable(); renderCards();
+    renderKpis(); applyFilters();
     saveSurDemo();
   }, 1100);
 }
@@ -2329,14 +2329,14 @@ function onFormsTypeChange(){
   syncFilterInputsFromState();
   renderSelectionsBar();
   lastFormRows = null;
+  document.getElementById('chk-export-btn').disabled = true;
+  document.getElementById('chk-export-btn').style.opacity = '.5';
+  document.getElementById('chk-export-btn').style.cursor = 'not-allowed';
   if(meta.isLookup){
     lookupApp5BinChk();
   } else {
     document.getElementById('chk-result').innerHTML = '';
   }
-  document.getElementById('chk-export-btn').disabled = true;
-  document.getElementById('chk-export-btn').style.opacity = '.5';
-  document.getElementById('chk-export-btn').style.cursor = 'not-allowed';
 }
 let lastFormHeader = null;
 let lastFormFilename = null;
