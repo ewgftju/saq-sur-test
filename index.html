@@ -6058,6 +6058,21 @@ function exportSaPreview(){
   const rows = selected.map((o,i)=>[i+1, o.name, o.bin||'', o.region||'', '', saKoLabel(o), o.regDate||'', (o.lastAudit&&o.lastAudit.date)||(o.lastInspection&&o.lastInspection.date)||'', o.category||o.kind||'', saCandidateDetail(o).replace(/<[^>]+>/g,'')]);
   downloadCSV(`proekt_${(saWizard.periodLabel||'spisok').replace(/\s+/g,'_')}.csv`, [header, ...rows]);
 }
+function saSnapshotObject(o){
+  // Полный "слепок" объекта на момент включения в список — те же поля, что показываются
+  // на этапе предпросмотра "Сформировать список" (renderSaStep4), чтобы состав утверждённого
+  // документа не терял данные по дороге через согласование/утверждение.
+  return {
+    name:o.name, kind:o.kind, risk:o.risk, score:o.score,
+    region:o.region||'Регион не указан',
+    bin:o.bin||'',
+    regDate:o.regDate||'',
+    lastAuditDate:(o.lastAudit&&o.lastAudit.date!=='—'&&o.lastAudit.date)||(o.lastInspection&&o.lastInspection.date!=='—'&&o.lastInspection.date)||'',
+    category:o.category||o.kind||'',
+    koLabel: saKoLabel(o),
+    basis: saCandidateDetail(o)
+  };
+}
 function confirmSemiAnnual(alsoCoordinate){
   const selected = saWizard.candidates.filter(o => saWizard.candidateSel[currentData.indexOf(o)]);
   const contour = currentContour;
@@ -6065,7 +6080,7 @@ function confirmSemiAnnual(alsoCoordinate){
   const list = { name, period: saWizard.periodLabel, year: String(CURRENT_YEAR), count: selected.length, status: 'draft', contour,
     packageId: saWizard.packageId,
     regionResponsible: {...saWizard.regionResponsible},
-    objects: selected.map(o=>({name:o.name, kind:o.kind, risk:o.risk, score:o.score, region:o.region||'Регион не указан'})) };
+    objects: selected.map(saSnapshotObject) };
   semiAnnualLists.push(list);
   selected.forEach(o => listByObject[o.name] = list.name);
   const el = document.getElementById('sa-success');
@@ -6155,13 +6170,34 @@ function renderGroupDetailBody(){
   document.getElementById('gd-count').textContent = item.count;
   const labelFn = item.contour === 'b' ? riskLabelB : riskLabelA;
   const showX = groupEditMode;
-  document.getElementById('gd-objects').innerHTML = (item.objects && item.objects.length) ? item.objects.map((o,oi)=>`
-    <div class="crit-row">
-      <span class="crit-name">${o.name}</span>
-      <span class="crit-val">${o.kind}</span>
-      <span class="badge ${o.risk}">${labelFn[o.risk]}</span>
-      ${showX ? `<button class="btn" style="height:26px;padding:0 8px;font-size:11.5px;" onclick="removeFromGroup(${oi})" title="Убрать из состава"><i class="ti ti-x"></i></button>` : ''}
-    </div>`).join('') : '<div style="color:var(--text-muted);font-size:13px;">Нет данных об объектах</div>';
+  const colCount = 11 + (showX ? 1 : 0);
+  const objRows = (item.objects && item.objects.length) ? item.objects.map((o,oi)=>`
+    <tr>
+      <td style="color:var(--text-muted);">${oi+1}</td>
+      <td><strong>${o.name}</strong></td>
+      <td class="mono" style="font-size:12px;">${o.bin||'—'}</td>
+      <td>${o.region||'—'}</td>
+      <td style="color:var(--text-muted);">—</td>
+      <td>${o.koLabel || saKoLabel(o) || '—'}</td>
+      <td style="color:var(--text-2);font-size:12px;">${o.regDate||'—'}</td>
+      <td style="color:var(--text-2);font-size:12px;">${o.lastAuditDate||'—'}</td>
+      <td>${o.category||o.kind||'—'}</td>
+      <td><span class="badge ${o.risk}">${labelFn[o.risk]}</span></td>
+      <td style="font-size:12px;">${o.basis||'—'}</td>
+      ${showX ? `<td><button class="btn" style="height:26px;padding:0 8px;font-size:11.5px;" onclick="removeFromGroup(${oi})" title="Убрать из состава"><i class="ti ti-x"></i></button></td>` : ''}
+    </tr>`).join('') : `<tr><td colspan="${colCount}" style="text-align:center;color:var(--text-muted);padding:20px;">Нет данных об объектах</td></tr>`;
+  document.getElementById('gd-objects').innerHTML = `
+    <div class="card" style="overflow-x:auto;margin-bottom:0;">
+      <table>
+        <thead><tr>
+          <th style="width:34px;">№</th><th>Наименование субъекта</th><th style="width:110px;">БИН</th><th style="width:130px;">Регион</th>
+          <th style="width:120px;">Место регистрации</th><th style="width:80px;">КО</th><th style="width:100px;">Дата регистрации</th>
+          <th style="width:110px;">Дата последнего контроля</th><th style="width:100px;">Вид деятельности</th><th style="width:110px;">Уровень риска</th>
+          <th style="width:220px;">Основание включения</th>${showX ? '<th style="width:40px;"></th>' : ''}
+        </tr></thead>
+        <tbody>${objRows}</tbody>
+      </table>
+    </div>`;
 
   const editBtn = document.getElementById('gd-edit-btn');
   const addBtn = document.getElementById('gd-add-btn');
@@ -6262,7 +6298,7 @@ function appendToGroup(){
   const wasAmendment = amendmentActive;
   const moduleName = item.contour==='b' ? 'ЭВГА' : 'Проф. контроль';
   objs.forEach(o=>{
-    item.objects.push({name:o.name, kind:o.kind, risk:o.risk, score:o.score});
+    item.objects.push(saSnapshotObject(o));
     listByObject[o.name] = item.name;
     if(item.status === 'approved') sentToModule[o.name] = moduleName;
     if(wasAmendment) logAmendment(item, 'added', o.name);
