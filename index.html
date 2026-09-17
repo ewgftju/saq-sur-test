@@ -3953,11 +3953,19 @@ function riskLabelFor(risk){
 }
 
 /* ---------- переключение экранов (сайдбар) ---------- */
+const ALL_NAV_IDS = ['nav-check','nav-perechen','nav-criteria','nav-history','nav-integrations','nav-analytics','nav-oko'];
+function clearAllNav(){
+  ALL_NAV_IDS.forEach(id=>{ const el = document.getElementById(id); if(el) el.classList.remove('active'); });
+}
+const ALL_SCREEN_LIST_VIEWS = ['view-list','view-detail','view-perechen-main','view-engagement','view-semiannual','view-final','view-group-detail'];
+function hideAllScreenListViews(){
+  ALL_SCREEN_LIST_VIEWS.forEach(id=>{ const el = document.getElementById(id); if(el) el.style.display = 'none'; });
+}
 function showScreen(name){
   ['list','criteria','history','integrations','analytics','oko'].forEach(s=>{
     document.getElementById('screen-'+s).classList.toggle('active', s===name);
   });
-  document.getElementById('nav-check').classList.remove('active');
+  clearAllNav();
   ['criteria','history','integrations','analytics','oko'].forEach(s=>{
     document.getElementById('nav-'+s).classList.toggle('active', s===name);
   });
@@ -3969,18 +3977,16 @@ function showScreen(name){
 }
 function showWorkspace(tab){
   showScreen('list');
+  clearAllNav();
   document.getElementById('nav-check').classList.add('active');
+  hideAllScreenListViews();
   document.getElementById('view-list').style.display = 'block';
-  document.getElementById('view-detail').style.display = 'none';
 }
 function openPerechenMain(){
   showScreen('list');
-  ['view-list','view-detail','view-engagement','view-semiannual','view-final','view-group-detail'].forEach(id=>{
-    const el = document.getElementById(id);
-    if(el) el.style.display = 'none';
-  });
+  clearAllNav();
+  hideAllScreenListViews();
   document.getElementById('view-perechen-main').style.display = 'block';
-  document.getElementById('nav-check').classList.remove('active');
   document.getElementById('nav-perechen').classList.add('active');
   renderPerechenMain();
   window.scrollTo(0,0);
@@ -5795,11 +5801,9 @@ function newSaWizard(){
     regionResponsible:{}, expandedRegions:{} };
 }
 function openSemiAnnualForm(){
-  document.getElementById('view-list').style.display = 'none';
-  document.getElementById('view-detail').style.display = 'none';
-  document.getElementById('view-perechen-main').style.display = 'none';
+  clearAllNav();
+  hideAllScreenListViews();
   document.getElementById('view-semiannual').style.display = 'block';
-  document.getElementById('nav-check').classList.remove('active');
   document.getElementById('nav-perechen').classList.add('active');
   document.getElementById('sa-success').style.display = 'none';
   saWizard = newSaWizard();
@@ -6131,11 +6135,9 @@ function openGroupDetail(type, i){
   currentGroupDetail = { type, index: i };
   groupEditMode = false;
   amendmentActive = false;
-  ['view-list','view-detail','view-semiannual','view-perechen-main'].forEach(id=>{
-    document.getElementById(id).style.display = 'none';
-  });
+  clearAllNav();
+  hideAllScreenListViews();
   document.getElementById('view-group-detail').style.display = 'block';
-  document.getElementById('nav-check').classList.remove('active');
   document.getElementById('nav-perechen').classList.add('active');
   renderGroupDetailBody();
   window.scrollTo(0,0);
