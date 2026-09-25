@@ -482,6 +482,9 @@
         </div>
         <div id="dvga-detail-meta" style="color:var(--text-2);font-size:13px;margin-bottom:16px;"></div>
         <div id="dvga-detail-objects"></div>
+        <div class="actions" style="margin-top:16px;">
+          <button class="btn" onclick="exportDvgaBatch(currentDvgaBatch)"><i class="ti ti-file-spreadsheet"></i>Выгрузить результаты СУР (Excel)</button>
+        </div>
         <div id="dvga-detail-actions" style="margin-top:16px;"></div>
       </div>
 
@@ -3989,6 +3992,8 @@ let regionalBatches = []; // {region, year, contour, sentDate, returnedDate, sta
 let sentToRegion = {}; // o.name -> регион, куда объект направлен на рассмотрение в ДВГА
 let currentDvgaBatch = null; // индекс просматриваемой пачки в разделе «Рассмотрение в ДВГА»
 let dvgaTab = 'active'; // 'active' | 'returned' — активная вкладка раздела «Рассмотрение в ДВГА»
+let dvgaExpandedRow = null; // индекс развёрнутой строки объекта в карточке пачки ДВГА (полная информация по объекту)
+let dvgaExpandedCrit = null; // индекс развёрнутого (до источника) критерия внутри развёрнутой строки объекта ДВГА
 let formedPerechni = []; // {number, date, period, objects:[...], byRegion:{region:[obj,...]}} — сформированные и утверждённые перечни (направление «Планирование аудита»)
 let dfoImport = {package:'DFO-RISK-2026-H1-0041', date:'05.08.2026, 09:14', checksum:'A3F9C1E7', count:96};
 let dfoImporting = false;
@@ -6181,15 +6186,25 @@ function saSnapshotObject(o){
   // Полный "слепок" объекта на момент включения в список — те же поля, что показываются
   // на этапе предпросмотра "Сформировать список" (renderSaStep4), чтобы состав утверждённого
   // документа не терял данные по дороге через согласование/утверждение.
+  // Также несёт полный набор данных расчёта СУР (пороги, сработавшие критерии с источником,
+  // финансирование и т.д.), чтобы получатель слепка (например, ДВГА при рассмотрении) видел
+  // не только итоговый уровень риска, но и полное основание, на котором он рассчитан.
   return {
     name:o.name, kind:o.kind, risk:o.risk, score:o.score,
-    region:o.region||'Регион не указан',
-    bin:o.bin||'',
+    region:o.region||'Регион не указан', district:o.district||'',
+    bin:o.bin||'', guCode:o.guCode||'',
     regDate:o.regDate||'',
     lastAuditDate:(o.lastAudit&&o.lastAudit.date!=='—'&&o.lastAudit.date)||(o.lastInspection&&o.lastInspection.date!=='—'&&o.lastInspection.date)||'',
+    lastInspectionType:(o.lastInspection&&o.lastInspection.type)||(o.lastAudit&&o.lastAudit.type)||'',
     category:o.category||o.kind||'',
     koLabel: saKoLabel(o),
-    basis: saCandidateDetail(o)
+    basis: saCandidateDetail(o),
+    year:o.year||'', auditType:o.auditType||'', subjectType:o.subjectType||'',
+    threshA:o.threshA, threshB:o.threshB, yearScores:o.yearScores||null,
+    orgStatus:o.status||'', orgStatusDate:o.statusDate||'',
+    parentAbp:o.parentAbp||null,
+    financing:o.financing||null,
+    crit:o.crit||[]
   };
 }
 function confirmSemiAnnual(alsoCoordinate){
@@ -6341,12 +6356,16 @@ function dvgaBatchActionButton(b, i){
   if(b.status === 'signing') return `<button class="btn btn-primary" style="height:28px;padding:0 10px;font-size:12px;" onclick="advanceDvgaBatch(${i})"><i class="ti ti-check"></i>Подписать и направить в КВГА</button>`;
   return '';
 }
+function dvgaRowActionsCell(b, i){
+  const exportBtn = `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="exportDvgaBatch(${i})" title="Выгрузить результаты СУР"><i class="ti ti-file-spreadsheet"></i>Excel</button>`;
+  return `<td onclick="event.stopPropagation()"><div style="display:flex;gap:6px;justify-content:flex-end;">${exportBtn}${dvgaBatchActionButton(b, i)}</div></td>`;
+}
 function renderDvgaActive(){
   const el = document.getElementById('dvga-active-content');
   const rows = regionalBatches.map((b,i)=>({b,i})).filter(x=>x.b.contour===currentContour && x.b.status!=='returned');
   el.innerHTML = `
     <div class="card" style="overflow-x:auto;"><table>
-      <thead><tr><th>Регион</th><th style="width:90px;">Год</th><th style="width:120px;">Направлено</th><th style="width:100px;">Объектов</th><th style="width:210px;">Статус</th><th style="width:220px;"></th></tr></thead>
+      <thead><tr><th>Регион</th><th style="width:90px;">Год</th><th style="width:120px;">Направлено</th><th style="width:100px;">Объектов</th><th style="width:210px;">Статус</th><th style="width:260px;"></th></tr></thead>
       <tbody>${rows.length ? rows.map(({b,i})=>`
         <tr class="row" onclick="openDvgaBatchDetail(${i})">
           <td><strong>${b.region}</strong></td>
@@ -6354,7 +6373,7 @@ function renderDvgaActive(){
           <td style="color:var(--text-2);">${b.sentDate}</td>
           <td>${b.objects.length}</td>
           <td>${dvgaBatchStatusBadge(b.status)}</td>
-          <td onclick="event.stopPropagation()">${dvgaBatchActionButton(b, i)}</td>
+          ${dvgaRowActionsCell(b, i)}
         </tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Нет объектов, направленных на рассмотрение. Отметьте объекты на вкладке «Проверка» и отправьте их в ДВГА по регионам.</td></tr>`}
       </tbody>
     </table></div>`;
@@ -6372,7 +6391,7 @@ function renderDvgaReturned(){
       ${pending ? `<button class="btn btn-primary" onclick="mergeReturnedIntoDraft()"><i class="ti ti-folder-plus"></i>Сформировать проект перечня (${pending})</button>` : ''}
     </div>
     <div class="card" style="overflow-x:auto;"><table>
-      <thead><tr><th>Регион</th><th style="width:90px;">Год</th><th style="width:120px;">Возвращено</th><th style="width:110px;">Направлено</th><th style="width:100px;">Оставлено</th><th style="width:210px;">Статус</th></tr></thead>
+      <thead><tr><th>Регион</th><th style="width:90px;">Год</th><th style="width:120px;">Возвращено</th><th style="width:110px;">Направлено</th><th style="width:100px;">Оставлено</th><th style="width:210px;">Статус</th><th style="width:110px;"></th></tr></thead>
       <tbody>${rows.length ? rows.map(({b,i})=>{
         const kept = b.objects.filter(o=>o.kept).length;
         return `<tr class="row" onclick="openDvgaBatchDetail(${i})">
@@ -6382,8 +6401,9 @@ function renderDvgaReturned(){
           <td>${b.objects.length}</td>
           <td>${kept}</td>
           <td>${b.merged ? '<span class="badge sent">Учтено в проекте перечня</span>' : '<span class="badge mid">Ожидает объединения</span>'}</td>
+          <td onclick="event.stopPropagation()"><button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="exportDvgaBatch(${i})" title="Выгрузить результаты СУР"><i class="ti ti-file-spreadsheet"></i>Excel</button></td>
         </tr>`;
-      }).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Пока нет возвращённых из ДВГА результатов</td></tr>`}
+      }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px;">Пока нет возвращённых из ДВГА результатов</td></tr>`}
       </tbody>
     </table></div>`;
 }
@@ -6401,6 +6421,8 @@ function advanceDvgaBatch(i){
 }
 function openDvgaBatchDetail(i){
   currentDvgaBatch = i;
+  dvgaExpandedRow = null;
+  dvgaExpandedCrit = null;
   clearAllNav();
   hideAllScreenListViews();
   document.getElementById('view-dvga-detail').style.display = 'block';
@@ -6413,6 +6435,70 @@ function closeDvgaBatchDetail(){
 }
 function toggleDvgaDecision(objIdx, checked){
   regionalBatches[currentDvgaBatch].objects[objIdx].kept = checked;
+  renderDvgaBatchDetail();
+}
+/* ---------- полная информация по объекту внутри карточки пачки ДВГА (развёрнутая строка) ---------- */
+function renderDvgaCritTable(crit, year){
+  if(!crit || !crit.length) return '<div style="color:var(--text-muted);font-size:12.5px;">Нет сработавших критериев за период</div>';
+  const yearIdx = ['2024','2025','2026'].indexOf(year);
+  const rows = crit.map((c,ci)=>{
+    const isNew = !Array.isArray(c);
+    const code = isNew ? c.code : c[0];
+    const name = isNew ? c.name : c[1];
+    const value = isNew ? c.value : c[2];
+    const note = isNew ? c.note : c[3];
+    const src = isNew ? c.source : c[4];
+    const pointsBadge = (isNew && c.yearly && yearIdx>=0) ? `<span class="crit-tag mono" style="background:var(--accent-bg);color:var(--accent);margin-left:6px;">балл ${c.yearly[yearIdx]}</span>` : '';
+    let html = `<tr class="row" ${src?`onclick="toggleDvgaCrit(${ci})" style="cursor:pointer;"`:''}>
+      <td class="mono">${code}</td>
+      <td>${name}</td>
+      <td>${value}</td>
+      <td><span class="crit-tag">${note}</span>${pointsBadge}</td>
+      <td style="text-align:right;">${src ? `<i class="ti ti-chevron-${dvgaExpandedCrit===ci?'up':'down'}" style="color:var(--text-muted);"></i>` : ''}</td>
+    </tr>`;
+    if(src && dvgaExpandedCrit===ci){
+      html += `<tr><td colspan="5" style="padding:0;border-top:0;">
+        <div style="padding:12px 14px 14px;margin:-1px 10px 10px;background:var(--surface-alt);border-radius:8px;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">${src.system} · ${src.doc}</div>
+          <div style="font-size:12.5px;font-weight:500;margin-bottom:6px;">${src.field} <span style="font-weight:400;color:var(--text-muted);">(${src.period})</span></div>
+          <div style="font-size:12.5px;font-style:italic;color:var(--text-2);border-left:2px solid var(--accent);padding-left:10px;">«${src.excerpt}»</div>
+          ${isNew && c.yearly ? `<div style="font-size:12px;color:var(--text-2);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">Балл по годам: 2024 — <strong>${c.yearly[0]}</strong> · 2025 — <strong>${c.yearly[1]}</strong> · 2026 — <strong>${c.yearly[2]}</strong></div>` : ''}
+        </div>
+      </td></tr>`;
+    }
+    return html;
+  }).join('');
+  return `<div class="card" style="margin-bottom:0;"><table>
+    <thead><tr><th style="width:110px;">Код</th><th>Критерий</th><th style="width:130px;">Значение</th><th>Комментарий</th><th style="width:60px;"></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+function renderDvgaObjectDetailPanel(o){
+  const rows = [];
+  if(o.year) rows.push(['Отчётный год', o.year]);
+  if(o.auditType) rows.push(['Вид аудита', o.subjectType ? `${o.subjectType} — ${o.auditType}` : o.auditType]);
+  if(o.guCode) rows.push(['Код ГУ', o.guCode]);
+  if(o.orgStatus) rows.push(['Статус субъекта', o.orgStatus === 'Действующий' ? o.orgStatus : `${o.orgStatus}${o.orgStatusDate ? ' · '+o.orgStatusDate : ''}`]);
+  if(o.lastAuditDate) rows.push(['Последняя проверка', o.lastInspectionType ? `${o.lastAuditDate} · ${o.lastInspectionType}` : o.lastAuditDate]);
+  if(o.threshA!=null && o.threshB!=null) rows.push(['Порог A / B в группе', `${o.threshA} / ${o.threshB}`]);
+  if(o.yearScores) rows.push(['Баллы по годам', `2024 — ${o.yearScores[0]} · 2025 — ${o.yearScores[1]} · 2026 — ${o.yearScores[2]}`]);
+  if(o.financing && o.financing.length) rows.push(['Финансирование', o.financing.map(f=>`${f.year}: ${f.amount}`).join(' · ')]);
+  const abpRow = `<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;"><span style="color:var(--text-muted);">Материнский АБП</span>${o.parentAbp
+    ? `<strong>${o.parentAbp.name}</strong> <span class="badge ${o.parentAbp.risk}" style="margin-left:4px;">${riskLabelB[o.parentAbp.risk]}</span>`
+    : '<span style="color:var(--text-muted);">не входит в состав АБП</span>'}</div>`;
+  const infoHtml = `<div style="background:var(--surface-alt);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;">
+    ${rows.map(([lbl,val])=>`<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;"><span style="color:var(--text-muted);">${lbl}</span><strong>${val}</strong></div>`).join('')}
+    ${abpRow}
+  </div>`;
+  return `<div class="section-title" style="margin-top:0;">Полная информация по объекту</div>${infoHtml}<div class="section-title">Сработавшие критерии</div>${renderDvgaCritTable(o.crit, o.year)}`;
+}
+function toggleDvgaCrit(ci){
+  dvgaExpandedCrit = dvgaExpandedCrit === ci ? null : ci;
+  renderDvgaBatchDetail();
+}
+function toggleDvgaRow(oi){
+  dvgaExpandedRow = dvgaExpandedRow === oi ? null : oi;
+  dvgaExpandedCrit = null;
   renderDvgaBatchDetail();
 }
 function renderDvgaBatchDetail(){
@@ -6429,22 +6515,32 @@ function renderDvgaBatchDetail(){
     `${b.year} год · Направлено: ${b.sentDate} · Объектов направлено: ${b.objects.length} · Оставлено к проверке: ${keptCount}${b.returnedDate ? ` · Возвращено в КВГА: ${b.returnedDate}` : ''}`;
   const editable = b.status === 'review';
   const labelFn = currentContour === 'b' ? riskLabelB : riskLabelA;
-  const rows = b.objects.map((o,oi)=>`
-    <tr style="${o.kept?'':'opacity:.5;'}">
+  const colCount = 9;
+  const rows = b.objects.map((o,oi)=>{
+    const expanded = dvgaExpandedRow === oi;
+    let html = `<tr class="row" style="cursor:pointer;${o.kept?'':'opacity:.5;'}" onclick="toggleDvgaRow(${oi})">
       <td style="color:var(--text-muted);">${oi+1}</td>
       <td><strong>${o.name}</strong></td>
       <td class="mono" style="font-size:12px;">${o.bin||'—'}</td>
+      <td>${o.district ? `${o.region}, ${o.district}` : (o.region||'—')}</td>
       <td>${o.category||o.kind||'—'}</td>
+      <td style="text-align:right;font-weight:600;">${o.score!=null?o.score:'—'}</td>
       <td><span class="badge ${o.risk}">${labelFn[o.risk]||o.risk}</span></td>
-      <td style="text-align:center;">${editable
+      <td onclick="event.stopPropagation()" style="text-align:center;">${editable
         ? `<input type="checkbox" ${o.kept?'checked':''} onchange="toggleDvgaDecision(${oi}, this.checked)">`
         : (o.kept ? '<span class="badge sent">Оставлен</span>' : '<span class="badge low">Исключён</span>')}</td>
-    </tr>`).join('');
+      <td style="text-align:right;"><i class="ti ti-chevron-${expanded?'up':'down'}" style="color:var(--text-muted);"></i></td>
+    </tr>`;
+    if(expanded){
+      html += `<tr><td colspan="${colCount}" style="padding:10px 10px 16px;border-top:0;">${renderDvgaObjectDetailPanel(o)}</td></tr>`;
+    }
+    return html;
+  }).join('');
   document.getElementById('dvga-detail-objects').innerHTML = `
     <div class="card" style="overflow-x:auto;margin-bottom:0;">
       <table>
-        <thead><tr><th style="width:34px;">№</th><th>Наименование объекта</th><th style="width:140px;">БИН</th><th style="width:200px;">Категория</th><th style="width:160px;">Уровень риска</th><th style="width:150px;">${editable?'Включить в проверку':'Решение ДВГА'}</th></tr></thead>
-        <tbody>${rows || `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Нет данных об объектах</td></tr>`}</tbody>
+        <thead><tr><th style="width:34px;">№</th><th>Наименование объекта</th><th style="width:140px;">БИН</th><th style="width:160px;">Регион</th><th style="width:170px;">Категория</th><th style="width:70px;text-align:right;">Балл</th><th style="width:140px;">Уровень риска</th><th style="width:150px;">${editable?'Включить в проверку':'Решение ДВГА'}</th><th style="width:40px;"></th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="${colCount}" style="text-align:center;color:var(--text-muted);padding:20px;">Нет данных об объектах</td></tr>`}</tbody>
       </table>
     </div>`;
   let actionsHtml = '';
@@ -6453,6 +6549,24 @@ function renderDvgaBatchDetail(){
   else if(b.status === 'signing') actionsHtml = `<button class="btn btn-primary" onclick="advanceDvgaBatch(${currentDvgaBatch})"><i class="ti ti-check"></i>Подписать и направить в КВГА</button>`;
   else if(b.status === 'returned') actionsHtml = b.merged ? `<span class="badge sent">Учтено в проекте перечня</span>` : `<span class="badge mid">Ожидает объединения в проект перечня</span>`;
   document.getElementById('dvga-detail-actions').innerHTML = actionsHtml;
+}
+/* ---------- выгрузка результата СУР по региону, направленного на рассмотрение в ДВГА ---------- */
+function exportDvgaBatch(i){
+  const b = regionalBatches[i];
+  if(!b) return;
+  if(!b.objects || !b.objects.length){
+    alert('В составе нет объектов — экспортировать нечего.');
+    return;
+  }
+  const header = ['№','Наименование объекта','БИН','Регион','Категория','Балл','Уровень риска','Решение ДВГА','Основание включения'];
+  const rows = b.objects.map((o,oi)=>[
+    oi+1, o.name, o.bin||'', o.district ? `${o.region}, ${o.district}` : (o.region||''), o.category||o.kind||'',
+    o.score!=null?o.score:'', riskLabelB[o.risk]||o.risk||'', o.kept?'Оставлен':'Исключён',
+    (o.basis||'').replace(/<[^>]+>/g,'')
+  ]);
+  const statusSlug = {review:'na_rassmotrenii', coordination:'na_soglasovanii', signing:'na_podpisanii', returned:'vozvrasheno'}[b.status] || b.status;
+  const safeRegion = b.region.replace(/[«»]/g,'').replace(/\s+/g,'_');
+  downloadCSV(`sur_dvga_${statusSlug}_${safeRegion}_${b.year}.csv`, [header, ...rows]);
 }
 function mergeReturnedIntoDraft(){
   const pending = unmergedReturnedBatches();
