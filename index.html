@@ -5060,7 +5060,7 @@ function renderTableHead(){
       <th style="width:120px;text-align:right;">Финанс. итого</th><th style="width:40px;"></th>`;
   } else {
     head.innerHTML = (canGroup ? `<th style="width:30px;"><input type="checkbox" id="chk-all" onclick="toggleSelectAll(this.checked)"></th>` : '') +
-      `<th style="width:34px;">№</th><th>Наименование объекта</th><th style="width:170px;">${currentContour==='b'?'Вид':'Категория субъекта'}</th>
+      `<th style="width:34px;">№</th><th>Наименование объекта</th><th style="width:170px;">Регион</th><th style="width:170px;">${currentContour==='b'?'Вид':'Категория субъекта'}</th>
       <th style="width:70px;">Год</th><th style="width:100px;">Критериев</th>
       <th style="width:90px;text-align:right;">${currentContour==='b'?'Баллы, 3г':'Балл R'}</th><th style="width:150px;">Уровень риска</th><th style="width:40px;"></th>`;
   }
@@ -5133,6 +5133,7 @@ function renderTable(){
       ${checkboxCell}
       <td style="color:var(--text-muted);">${displayNum}</td>
       <td>${o.name}${sentTo?` <span class="tag-mini">отправлено в ${sentTo}</span>`:''}${(!sentTo && sentToRegion[o.name])?` <span class="tag-mini">в ДВГА: ${sentToRegion[o.name]}</span>`:''}${excluded?' <span class="tag-mini">исключён</span>':''}</td>
+      <td style="color:var(--text-2);">${o.region || deriveRegion(o.name)}</td>
       <td style="color:var(--text-2);">${o.kind}</td>
       <td style="color:var(--text-2);">${o.year}</td>
       <td style="color:var(--text-2);">${o.crit.length}</td>
@@ -5140,7 +5141,7 @@ function renderTable(){
       <td><span class="badge ${o.risk}">${riskLabelFor(o.risk)}</span></td>
       <td><i class="ti ti-chevron-right" style="color:var(--text-muted);"></i></td>
     </tr>`;
-  }).join('') : `<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:24px;">Объекты не найдены — попробуйте изменить фильтры</td></tr>`;
+  }).join('') : `<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:24px;">Объекты не найдены — попробуйте изменить фильтры</td></tr>`;
   updateSelectionBar();
 }
 function renderCards(){
@@ -5609,8 +5610,8 @@ function exportCSV(){
   } else {
     const kindLabel = currentContour==='b' ? 'Вид' : 'Категория субъекта';
     const scoreLabel = currentContour==='b' ? 'Баллы, 3г' : 'Балл R';
-    header = ['№','Наименование объекта',kindLabel,scoreLabel,'Уровень риска'];
-    rows = visible.map(o=>[currentData.indexOf(o)+1, o.name, o.kind, o.score, riskLabelFor(o.risk)]);
+    header = ['№','Наименование объекта','Регион',kindLabel,scoreLabel,'Уровень риска'];
+    rows = visible.map(o=>[currentData.indexOf(o)+1, o.name, o.region || deriveRegion(o.name), o.kind, o.score, riskLabelFor(o.risk)]);
     filename = currentContour==='b' ? `perechen_evga.csv` : `perechen_profkontrol.csv`;
   }
   if(rows.length === 0){
