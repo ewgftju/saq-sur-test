@@ -712,10 +712,6 @@
           </div>
           <div class="section-title">Состав</div>
           <div id="gd-objects"></div>
-          <div id="gd-engagements-wrap" style="display:none;margin-top:16px;">
-            <div class="section-title">Аудиторские мероприятия <span style="font-weight:400;color:var(--text-muted);">— наименование и срок для официальной выгрузки перечня</span></div>
-            <div id="gd-engagements"></div>
-          </div>
           <div class="actions">
             <button class="btn" id="gd-edit-btn" onclick="toggleGroupEdit()"><i class="ti ti-edit"></i>Редактировать</button>
             <button class="btn btn-primary" id="gd-add-btn" style="display:none;" onclick="startAddToGroup()"><i class="ti ti-plus"></i>Добавить объекты</button>
@@ -6392,7 +6388,7 @@ function exportApprovedPerechenOfficial(l){
     const groupOrder = [];
     byRegion[region].forEach(o=>{
       const auditType = (o.auditType || 'Аудит соответствия');
-      const key = region + '|' + auditType; // одна группа на департамент × тип аудита — совпадает с ключом gd-engagements, чтобы ручные правки (setEngOverride) применялись к тем же строкам
+      const key = region + '|' + auditType; // одна группа на департамент × тип аудита — совпадает с ключом группировки в renderGroupDetailBody, чтобы ручные правки (setEngOverride) применялись к тем же строкам
       if(!groups[key]){
         const ov = engOverrideFor(l, key);
         groups[key] = {
@@ -6474,39 +6470,29 @@ function computeEngagementGroups(item){
   });
   return order.map(k=>groups[k]);
 }
-function renderGroupEngagements(){
-  const { index } = currentGroupDetail;
-  const item = semiAnnualLists[index];
-  const wrap = document.getElementById('gd-engagements-wrap');
-  if(!wrap) return;
-  if(item.contour !== 'b' || !item.objects || !item.objects.length){
-    wrap.style.display = 'none';
-    return;
-  }
-  wrap.style.display = 'block';
-  const itemYear = Number(item.year) || CURRENT_YEAR;
-  const periodOptions = OFFICIAL_AUDIT_QUARTERS.concat([finReportPeriodLabel(itemYear)]);
-  const groups = computeEngagementGroups(item);
-  document.getElementById('gd-engagements').innerHTML = groups.map(g=>{
-    const ov = engOverrideFor(item, g.key);
-    const nameVal = (ov && ov.name) || officialEngagementName(g.region, g.auditType);
-    const periodVal = (ov && ov.period) || officialEngagementPeriod(g.auditType, g.key, itemYear);
-    const periodField = `<select onchange="setEngOverride('${g.key.replace(/'/g,"\\'")}','period',this.value)" style="width:100%;">${periodOptions.map(q=>`<option ${q===periodVal?'selected':''}>${escAttr(q)}</option>`).join('')}</select>`;
-    return `
-    <div class="card" style="padding:12px 14px;margin-bottom:8px;">
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${departmentNameForRegion(g.region)} · ${(g.auditType||'').toLowerCase()} · объектов: ${g.objects.length}</div>
-      <div style="display:grid;grid-template-columns:1fr 240px;gap:10px;">
-        <div class="field" style="margin:0;">
-          <label>Наименование аудиторского мероприятия</label>
-          <input type="text" value="${escAttr(nameVal)}" onchange="setEngOverride('${g.key.replace(/'/g,"\\'")}','name',this.value)" style="width:100%;">
-        </div>
-        <div class="field" style="margin:0;">
-          <label>Срок проведения аудита</label>
-          ${periodField}
-        </div>
-      </div>
-    </div>`;
-  }).join('');
+function objTableHead(showX){
+  return `<thead><tr>
+    <th style="width:34px;">№</th><th>Наименование субъекта</th><th style="width:110px;">БИН</th><th style="width:130px;">Регион</th>
+    <th style="width:120px;">Место регистрации</th><th style="width:80px;">КО</th><th style="width:100px;">Дата регистрации</th>
+    <th style="width:110px;">Дата последнего контроля</th><th style="width:100px;">Вид деятельности</th><th style="width:110px;">Уровень риска</th>
+    <th style="width:220px;">Основание включения</th>${showX ? '<th style="width:40px;"></th>' : ''}
+  </tr></thead>`;
+}
+function objTableRow(o, oi, labelFn, showX){
+  return `<tr>
+    <td style="color:var(--text-muted);">${oi+1}</td>
+    <td><strong>${o.name}</strong></td>
+    <td class="mono" style="font-size:12px;">${o.bin||'—'}</td>
+    <td>${o.region||'—'}</td>
+    <td style="color:var(--text-muted);">—</td>
+    <td>${o.koLabel || saKoLabel(o) || '—'}</td>
+    <td style="color:var(--text-2);font-size:12px;">${o.regDate||'—'}</td>
+    <td style="color:var(--text-2);font-size:12px;">${o.lastAuditDate||'—'}</td>
+    <td>${o.category||o.kind||'—'}</td>
+    <td><span class="badge ${o.risk}">${labelFn[o.risk]}</span></td>
+    <td style="font-size:12px;">${o.basis||'—'}</td>
+    ${showX ? `<td><button class="btn" style="height:26px;padding:0 8px;font-size:11.5px;" onclick="removeFromGroup(${oi})" title="Убрать из состава"><i class="ti ti-x"></i></button></td>` : ''}
+  </tr>`;
 }
 function setEngOverride(key, field, value){
   const { index } = currentGroupDetail;
@@ -6864,33 +6850,52 @@ function renderGroupDetailBody(){
   const labelFn = item.contour === 'b' ? riskLabelB : riskLabelA;
   const showX = groupEditMode;
   const colCount = 11 + (showX ? 1 : 0);
-  const objRows = (item.objects && item.objects.length) ? item.objects.map((o,oi)=>`
-    <tr>
-      <td style="color:var(--text-muted);">${oi+1}</td>
-      <td><strong>${o.name}</strong></td>
-      <td class="mono" style="font-size:12px;">${o.bin||'—'}</td>
-      <td>${o.region||'—'}</td>
-      <td style="color:var(--text-muted);">—</td>
-      <td>${o.koLabel || saKoLabel(o) || '—'}</td>
-      <td style="color:var(--text-2);font-size:12px;">${o.regDate||'—'}</td>
-      <td style="color:var(--text-2);font-size:12px;">${o.lastAuditDate||'—'}</td>
-      <td>${o.category||o.kind||'—'}</td>
-      <td><span class="badge ${o.risk}">${labelFn[o.risk]}</span></td>
-      <td style="font-size:12px;">${o.basis||'—'}</td>
-      ${showX ? `<td><button class="btn" style="height:26px;padding:0 8px;font-size:11.5px;" onclick="removeFromGroup(${oi})" title="Убрать из состава"><i class="ti ti-x"></i></button></td>` : ''}
-    </tr>`).join('') : `<tr><td colspan="${colCount}" style="text-align:center;color:var(--text-muted);padding:20px;">Нет данных об объектах</td></tr>`;
-  document.getElementById('gd-objects').innerHTML = `
-    <div class="card" style="overflow-x:auto;margin-bottom:0;">
-      <table>
-        <thead><tr>
-          <th style="width:34px;">№</th><th>Наименование субъекта</th><th style="width:110px;">БИН</th><th style="width:130px;">Регион</th>
-          <th style="width:120px;">Место регистрации</th><th style="width:80px;">КО</th><th style="width:100px;">Дата регистрации</th>
-          <th style="width:110px;">Дата последнего контроля</th><th style="width:100px;">Вид деятельности</th><th style="width:110px;">Уровень риска</th>
-          <th style="width:220px;">Основание включения</th>${showX ? '<th style="width:40px;"></th>' : ''}
-        </tr></thead>
-        <tbody>${objRows}</tbody>
-      </table>
-    </div>`;
+
+  if(item.contour === 'b' && item.objects && item.objects.length){
+    // Контур Б: состав разбит по аудиторским мероприятиям (департамент × тип аудита) — наименование
+    // и срок редактируются прямо над своей группой объектов, а не в отдельном блоке внизу экрана.
+    const itemYear = Number(item.year) || CURRENT_YEAR;
+    const periodOptions = OFFICIAL_AUDIT_QUARTERS.concat([finReportPeriodLabel(itemYear)]);
+    const groups = computeEngagementGroups(item);
+    document.getElementById('gd-objects').innerHTML = groups.map(g=>{
+      const ov = engOverrideFor(item, g.key);
+      const nameVal = (ov && ov.name) || officialEngagementName(g.region, g.auditType);
+      const periodVal = (ov && ov.period) || officialEngagementPeriod(g.auditType, g.key, itemYear);
+      const keyEsc = g.key.replace(/'/g,"\\'");
+      const rowsHtml = g.objects.map(o => objTableRow(o, item.objects.indexOf(o), labelFn, showX)).join('');
+      return `
+      <div class="card" style="overflow-x:auto;margin-bottom:12px;padding:0;">
+        <div style="padding:12px 14px 10px;border-bottom:1px solid var(--border);">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${departmentNameForRegion(g.region)} · ${(g.auditType||'').toLowerCase()} · объектов: ${g.objects.length}</div>
+          <div style="display:grid;grid-template-columns:1fr 240px;gap:10px;">
+            <div class="field" style="margin:0;">
+              <label>Наименование аудиторского мероприятия</label>
+              <input type="text" value="${escAttr(nameVal)}" onchange="setEngOverride('${keyEsc}','name',this.value)" style="width:100%;">
+            </div>
+            <div class="field" style="margin:0;">
+              <label>Срок проведения аудита</label>
+              <select onchange="setEngOverride('${keyEsc}','period',this.value)" style="width:100%;">${periodOptions.map(q=>`<option ${q===periodVal?'selected':''}>${escAttr(q)}</option>`).join('')}</select>
+            </div>
+          </div>
+        </div>
+        <table>
+          ${objTableHead(showX)}
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>`;
+    }).join('');
+  } else {
+    const objRows = (item.objects && item.objects.length)
+      ? item.objects.map((o,oi)=>objTableRow(o, oi, labelFn, showX)).join('')
+      : `<tr><td colspan="${colCount}" style="text-align:center;color:var(--text-muted);padding:20px;">Нет данных об объектах</td></tr>`;
+    document.getElementById('gd-objects').innerHTML = `
+      <div class="card" style="overflow-x:auto;margin-bottom:0;">
+        <table>
+          ${objTableHead(showX)}
+          <tbody>${objRows}</tbody>
+        </table>
+      </div>`;
+  }
 
   const editBtn = document.getElementById('gd-edit-btn');
   const addBtn = document.getElementById('gd-add-btn');
@@ -6919,7 +6924,6 @@ function renderGroupDetailBody(){
         <span class="crit-val">${a.date}</span>
       </div>`).join('')}
   ` : '';
-  renderGroupEngagements();
 }
 function toggleGroupEdit(){
   const { index } = currentGroupDetail;
