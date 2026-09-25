@@ -152,7 +152,7 @@
   <div class="shell-heading">
     <span class="shell-context">Система управления рисками</span>
     <strong id="shell-page-title">Перечень объектов</strong>
-    <span class="shell-subtitle" id="shell-subtitle">СУР ЭВГА</span>
+    <span class="shell-subtitle" id="shell-subtitle">СУР для планирования годового аудита</span>
   </div>
   <div class="shell-actions">
     <span class="shell-language">RU</span>
@@ -182,7 +182,7 @@
     <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="Свернуть меню" aria-expanded="true" aria-controls="sur-navigation">‹</button>
     <nav class="sur-navigation" id="sur-navigation" aria-label="Навигация СУР">
     <div class="nav-section">Направления СУР</div>
-    <button type="button" class="nav-item nav-module active" id="mod-sur-evga" onclick="selectSurModule('b')" title="СУР ЭВГА"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3-8 3v6c0 5 8 9 8 9s8-4 8-9V6z"/><path d="m8 12 3 3 5-6"/></svg><span class="nav-label">СУР ЭВГА</span></button>
+    <button type="button" class="nav-item nav-module active" id="mod-sur-evga" onclick="selectSurModule('b')" title="СУР для планирования годового аудита"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3-8 3v6c0 5 8 9 8 9s8-4 8-9V6z"/><path d="m8 12 3 3 5-6"/></svg><span class="nav-label">СУР для планирования годового аудита</span></button>
     <button type="button" class="nav-item nav-module" id="mod-sur-pk" onclick="selectSurModule('a')" title="СУР Проф.контроль"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3-8 3v6c0 5 8 9 8 9s8-4 8-9V6z"/><path d="m8 12 3 3 5-6"/></svg><span class="nav-label">СУР Проф.контроль</span></button>
     <div class="nav-section" id="nav-section-sur">Работа с рисками</div>
     <div class="sur-subnav">
@@ -203,7 +203,7 @@
     <div id="screen-list" class="screen active">
 
       <div id="view-list">
-        <div class="crumb" id="crumb">СУР ЭВГА / Проверка</div>
+        <div class="crumb" id="crumb">СУР для планирования годового аудита / Проверка</div>
         <div class="topbar">
           <h1 id="page-title">Перечень объектов</h1>
           <span class="pill" id="page-pill">—</span>
@@ -224,13 +224,13 @@
           </div>
         </div>
 
-        <!-- ЭВГА: запуск оценки рисков -->
+        <!-- Планирование аудита: запуск оценки рисков -->
         <div class="card" id="evga-calc-panel" style="padding:14px 18px;margin-bottom:16px;">
           <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
             <div style="display:flex;align-items:center;gap:10px;">
               <i class="ti ti-calculator" style="font-size:20px;color:var(--accent);"></i>
               <div>
-                <div style="font-size:13px;font-weight:500;">Оценка рисков ЭВГА (индикаторы → пороги → скоринг → уровень риска)</div>
+                <div style="font-size:13px;font-weight:500;">Оценка рисков объектов аудита (индикаторы → пороги → скоринг → уровень риска)</div>
                 <div style="font-size:12px;color:var(--text-muted);" id="evga-calc-status-line">Последний расчёт: —</div>
               </div>
             </div>
@@ -468,38 +468,44 @@
             <span class="badge" id="d-badge">—</span>
           </div>
 
-          <div class="stat-grid" id="top-stat-grid">
-            <div class="stat"><div class="lbl" id="d-score-lbl">Балл</div><div class="val" id="d-score">—</div></div>
-            <div class="stat"><div class="lbl" id="d-thresh-lbl">Порог</div><div class="val" id="d-thresh-val">—</div></div>
-            <div class="stat"><div class="lbl" id="d-count-lbl">Сработало критериев</div><div class="val" id="d-critcount">—</div></div>
-            <div class="stat"><div class="lbl">Отчётный год</div><div class="val" id="d-year">—</div></div>
-          </div>
+          <div class="card" id="top-stat-grid" style="margin:20px 0;"><table>
+            <tbody>
+              <tr><th style="width:260px;" id="d-score-lbl">Балл</th><td id="d-score">—</td></tr>
+              <tr><th id="d-thresh-lbl">Порог</th><td id="d-thresh-val">—</td></tr>
+              <tr><th id="d-count-lbl">Сработало критериев</th><td id="d-critcount">—</td></tr>
+              <tr><th>Отчётный год</th><td id="d-year">—</td></tr>
+            </tbody>
+          </table></div>
 
           <div id="requisites-block">
             <div class="section-title">Реквизиты объекта</div>
-            <div class="stat-grid" style="margin-top:0;">
-              <div class="stat"><div class="lbl">БИН</div><div class="val mono" id="d-bin" style="font-size:15px;">—</div></div>
-              <div class="stat"><div class="lbl">Код ГУ</div><div class="val mono" id="d-gucode" style="font-size:15px;">—</div></div>
-              <div class="stat"><div class="lbl">Статус объекта</div><div class="val" id="d-status" style="font-size:14px;">—</div></div>
-              <div class="stat"><div class="lbl">Тип субъекта</div><div class="val" id="d-subjtype" style="font-size:15px;">—</div></div>
-              <div class="stat"><div class="lbl">Область / район</div><div class="val" id="d-region" style="font-size:14px;">—</div></div>
-              <div class="stat"><div class="lbl">Уровень риска АБП</div><div class="val" id="d-abprisk" style="font-size:14px;">—</div></div>
-              <div class="stat"><div class="lbl">Дата и тип посл. проверки</div><div class="val" id="d-lastinsp" style="font-size:14px;">—</div></div>
-              <div class="stat"><div class="lbl">Финансирование, млн тенге</div><div class="val" id="d-financing" style="font-size:13px;line-height:1.4;">—</div></div>
-            </div>
+            <div class="card" style="margin-top:8px;"><table>
+              <tbody>
+                <tr><th style="width:260px;">БИН</th><td class="mono" id="d-bin" style="font-size:15px;">—</td></tr>
+                <tr><th>Код ГУ</th><td class="mono" id="d-gucode" style="font-size:15px;">—</td></tr>
+                <tr><th>Статус объекта</th><td id="d-status" style="font-size:14px;">—</td></tr>
+                <tr><th>Тип субъекта</th><td id="d-subjtype" style="font-size:15px;">—</td></tr>
+                <tr><th>Область / район</th><td id="d-region" style="font-size:14px;">—</td></tr>
+                <tr><th>Уровень риска АБП</th><td id="d-abprisk" style="font-size:14px;">—</td></tr>
+                <tr><th>Дата и тип посл. проверки</th><td id="d-lastinsp" style="font-size:14px;">—</td></tr>
+                <tr><th>Финансирование, млн тенге</th><td id="d-financing" style="font-size:13px;line-height:1.4;">—</td></tr>
+              </tbody>
+            </table></div>
           </div>
 
           <div id="requisites-block-a">
             <div class="section-title">Реквизиты объекта</div>
-            <div class="stat-grid" style="margin-top:0;">
-              <div class="stat"><div class="lbl">БИН</div><div class="val mono" id="da-bin" style="font-size:15px;">—</div></div>
-              <div class="stat"><div class="lbl">Категория субъекта</div><div class="val" id="da-category" style="font-size:14px;">—</div></div>
-              <div class="stat"><div class="lbl">Статус объекта</div><div class="val" id="da-status" style="font-size:14px;">—</div></div>
-              <div class="stat"><div class="lbl">Регион</div><div class="val" id="da-region" style="font-size:14px;">—</div></div>
-              <div class="stat"><div class="lbl">Категория предпринимательства</div><div class="val" id="da-bizcat" style="font-size:14px;">—</div></div>
-              <div class="stat"><div class="lbl">Дата и тип посл. проверки</div><div class="val" id="da-lastaudit" style="font-size:14px;">—</div></div>
-              <div class="stat"><div class="lbl">Отчётный год</div><div class="val" id="da-year" style="font-size:14px;">—</div></div>
-            </div>
+            <div class="card" style="margin-top:8px;"><table>
+              <tbody>
+                <tr><th style="width:260px;">БИН</th><td class="mono" id="da-bin" style="font-size:15px;">—</td></tr>
+                <tr><th>Категория субъекта</th><td id="da-category" style="font-size:14px;">—</td></tr>
+                <tr><th>Статус объекта</th><td id="da-status" style="font-size:14px;">—</td></tr>
+                <tr><th>Регион</th><td id="da-region" style="font-size:14px;">—</td></tr>
+                <tr><th>Категория предпринимательства</th><td id="da-bizcat" style="font-size:14px;">—</td></tr>
+                <tr><th>Дата и тип посл. проверки</th><td id="da-lastaudit" style="font-size:14px;">—</td></tr>
+                <tr><th>Отчётный год</th><td id="da-year" style="font-size:14px;">—</td></tr>
+              </tbody>
+            </table></div>
           </div>
 
           <div id="calc-breakdown" style="display:none;">
@@ -692,7 +698,7 @@
           <h1>Итоговый перечень объектов государственного аудита</h1>
           <span class="pill" id="final-status-pill">Проект</span>
         </div>
-        <p style="color:var(--text-2);font-size:13px;max-width:760px;margin-bottom:16px;">Сводный документ — все сформированные аудиторские мероприятия, сгруппированные по контексту (ДВГА / ЭВГА / СВА), с итогами по каждой группе. Соответствует структуре официального перечня, утверждаемого приказом председателя КВГА (раздел 6.11 ТЗ).</p>
+        <p style="color:var(--text-2);font-size:13px;max-width:760px;margin-bottom:16px;">Сводный документ — все сформированные аудиторские мероприятия, сгруппированные по контексту (ДВГА / Планирование аудита / СВА), с итогами по каждой группе. Соответствует структуре официального перечня, утверждаемого приказом председателя КВГА (раздел 6.11 ТЗ).</p>
 
         <div id="final-groups"></div>
 
@@ -707,13 +713,13 @@
         <div id="final-approved-note" class="note" style="display:none;margin-top:16px;"></div>
       </div>
 
-    <!-- ============ МОДАЛЬНОЕ ОКНО: ФОРМИРОВАНИЕ ПЕРЕЧНЯ (ЭВГА) ============ -->
+    <!-- ============ МОДАЛЬНОЕ ОКНО: ФОРМИРОВАНИЕ ПЕРЕЧНЯ (ПЛАНИРОВАНИЕ АУДИТА) ============ -->
     <div id="perechen-modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(20,22,28,.55);z-index:100;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 20px;">
       <div class="card" style="max-width:900px;width:100%;padding:0;margin:0;">
         <div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
           <div>
             <div style="font-size:17px;font-weight:600;">Формирование перечня объектов государственного аудита</div>
-            <div style="font-size:12.5px;color:var(--text-muted);margin-top:2px;">Группировка по территориальному признаку — для направления в ДВГА и СВА соответствующих областей</div>
+            <div style="font-size:12.5px;color:var(--text-muted);margin-top:2px;">Группировка по территориальному признаку — для направления на рассмотрение в ДВГА соответствующих областей</div>
           </div>
           <i class="ti ti-x" style="cursor:pointer;font-size:20px;color:var(--text-muted);" onclick="closePerechenModal()"></i>
         </div>
@@ -731,10 +737,10 @@
       <div class="crumb" id="crit-crumb">Реестр критериев</div>
       <div class="topbar">
         <h1 id="crit-title">Реестр критериев</h1>
-        <span class="pill" id="crit-pill">ЭВГА</span>
+        <span class="pill" id="crit-pill">Планирование аудита</span>
       </div>
 
-      <p style="color:var(--text-2);font-size:13px;max-width:760px;margin-bottom:16px;" id="crit-desc">Справочник критериев государственного аудита (ЭВГА/СВА) — код индикатора, категория объекта, логика скоринга. Версионируется; изменение веса или порога создаёт новую версию критерия (ФТ-2).</p>
+      <p style="color:var(--text-2);font-size:13px;max-width:760px;margin-bottom:16px;" id="crit-desc">Справочник критериев государственного аудита (планирование аудита/СВА) — код индикатора, категория объекта, логика скоринга. Версионируется; изменение веса или порога создаёт новую версию критерия (ФТ-2).</p>
 
       <div class="toolbar" id="crit-toolbar-b" style="margin-top:0;">
         <input type="text" id="crit-search-b" placeholder="Поиск по коду или наименованию" oninput="renderCriteriaB()" style="max-width:360px;">
@@ -944,9 +950,9 @@
             <div class="field">
               <label>Источник данных</label>
               <select id="rep-type" onchange="onReportTypeChange()" style="width:100%;">
-                <option value="perechen_b">Перечень объектов — ЭВГА</option>
+                <option value="perechen_b">Перечень объектов — планирование аудита</option>
                 <option value="perechen_a">Перечень объектов — Проф. контроль</option>
-                <option value="criteria_b">Реестр критериев — ЭВГА</option>
+                <option value="criteria_b">Реестр критериев — планирование аудита</option>
                 <option value="history">История расчётов</option>
               </select>
             </div>
@@ -3718,7 +3724,7 @@ const dataA = [
           {system:"NSI", doc:"Справочник учредителей юридических лиц", field:"Состав учредителей и участников профессиональной организации", period:"2024", excerpt:"В составе учредителей выявлено физическое лицо без статуса аудитора"}]]},
 ];
 
-/* ===================== РЕЕСТР КРИТЕРИЕВ — ЭВГА, раздел 6.5.1 ТЗ ===================== */
+/* ===================== РЕЕСТР КРИТЕРИЕВ — ПЛАНИРОВАНИЕ АУДИТА, раздел 6.5.1 ТЗ ===================== */
 const criteriaB_registry = [
   ["RI-ABP-01 / RI-GU-ACC-01","Годовой объём финансирования, %","АБП / ГУ","Базовая","(C1/C2)×100 — C1: сумма финансирования объекта, C2: сумма по группе","Активен"],
   ["RI-ABP-02 / RI-GU-ACC-02","Освоение бюджетных средств на конец периода, %","АБП / ГУ","Инвертированная","(C1/C2)×100 — C1: скорректированный бюджет, C2: исполненный бюджет","Активен"],
@@ -3842,12 +3848,12 @@ const criteriaA_registry = [
 
 /* ===================== ИСТОРИЯ РАСЧЁТОВ (справочно) ===================== */
 const historyLog = [
-  ["10.08.2026 09:14","ЭВГА — плановый расчёт","Аналитик СУР","142","ok","4 мин 12 с"],
-  ["10.08.2026 08:02","ЭВГА — пересчёт по обновлённым данным BCP","Автоматически (расписание)","19","ok","38 с"],
-  ["09.08.2026 22:00","ЭВГА — Перечень АБП","Автоматически (расписание)","4","ok","51 с"],
+  ["10.08.2026 09:14","Планирование аудита — плановый расчёт","Аналитик СУР","142","ok","4 мин 12 с"],
+  ["10.08.2026 08:02","Планирование аудита — пересчёт по обновлённым данным BCP","Автоматически (расписание)","19","ok","38 с"],
+  ["09.08.2026 22:00","Планирование аудита — Перечень АБП","Автоматически (расписание)","4","ok","51 с"],
   ["09.08.2026 16:47","Проф. контроль","Инспектор проф.контроля","96","ok","2 мин 05 с"],
-  ["08.08.2026 09:10","ЭВГА — плановый расчёт","Аналитик СУР","9","error","— (сбой источника NSI)"],
-  ["07.08.2026 09:00","ЭВГА — плановый расчёт","Автоматически (расписание)","142","ok","4 мин 40 с"],
+  ["08.08.2026 09:10","Планирование аудита — плановый расчёт","Аналитик СУР","9","error","— (сбой источника NSI)"],
+  ["07.08.2026 09:00","Планирование аудита — плановый расчёт","Автоматически (расписание)","142","ok","4 мин 40 с"],
 ];
 
 /* ===================== РЕЕСТР ИСТОЧНИКОВ ДАННЫХ (интеграции) ===================== */
@@ -3864,35 +3870,35 @@ const integrations = [
     statusLabel:"Не подключено",
     desc:"Платформа финансового мониторинга АФМ РК — реестр регистрации субъектов финансового мониторинга. Нужен для проверки, зарегистрирована ли действующая аудиторская организация как субъект финансового мониторинга.",
     tables:["АО П-9 (приложение А) — сопоставление БИН аудиторской организации с реестром, дата регистрации, статус активности"] },
-  { name:"BCP / Консолидация", icon:"ti-building-bank", scope:"ЭВГА", status:"connected",
+  { name:"BCP / Консолидация", icon:"ti-building-bank", scope:"Планирование аудита", status:"connected",
     statusLabel:"Подключено",
     desc:"Консолидация бюджета, дебиторская/кредиторская задолженность, формы финансовой отчётности (Баланс №1/№2), бюджетные операции.",
     tables:["CONS_DICT: GU, ABP, KATO, BUDGET, BUDGET_LEVEL, FKR, REGION","CONS_META: PERIOD, TEMPL","CONS_DATA: FACT_IISK_R, HEADER, PERIOD, FACT_DZB, FACT_KZB, FACT_FIN_FORM1, FACT_FIN_FORM2, RESPONSIBILITY, HISTORY"] },
-  { name:"CRAMS", icon:"ti-gavel", scope:"ЭВГА", status:"connected",
+  { name:"CRAMS", icon:"ti-gavel", scope:"Планирование аудита", status:"connected",
     statusLabel:"Подключено",
     desc:"Дела государственного аудита, аудиторские нарушения и отчёты, дата и тип последней проверки объекта.",
     tables:["crams_surga_gac_case","audit_violation, audit_report_doc, gac_control_types, budget_class","crams_core_managed_obj","crams_gbd_jp_core / juristicperson_main","crams_cmg_document / casefile_part","v_dm_gac_audit_report","+ более 20 таблиц"] },
-  { name:"ETA / ЕГЗ (гос.закупки)", icon:"ti-shopping-cart", scope:"ЭВГА", status:"connected",
+  { name:"ETA / ЕГЗ (гос.закупки)", icon:"ti-shopping-cart", scope:"Планирование аудита", status:"connected",
     statusLabel:"Подключено",
     desc:"Камеральный контроль, профили риска, лоты, жалобы по государственным закупкам. Схема egz_whdb.",
     tables:["d3_ctl_inspect, d3_ctl_profile, d3_ref_ctl_profile","d3_trd_buy, d3_trd_buy_lots, d3_trd_complaint","d3_pln_points","table_egz_member_reg_info_v / attributes / bids_v / contract_lines_v"] },
-  { name:"NSI (нормативно-справочная информация)", icon:"ti-database", scope:"ЭВГА", status:"connected",
+  { name:"NSI (нормативно-справочная информация)", icon:"ti-database", scope:"Планирование аудита", status:"connected",
     statusLabel:"Подключено",
     desc:"Справочники КАТО, АБП, ГУ, программ финансирования.",
     tables:["EMF_KATO, EMF_ABP, EMF_GU","CONS_ABP","cons_fkr_prg","TYPES_OF_BUDGET"] },
-  { name:"ORCL2 / ХД (хранилище данных)", icon:"ti-server-2", scope:"ЭВГА", status:"connected",
+  { name:"ORCL2 / ХД (хранилище данных)", icon:"ti-server-2", scope:"Планирование аудита", status:"connected",
     statusLabel:"Подключено",
     desc:"Операции и платежи.",
     tables:["DATALOADER.TB_OPER_RQ_<год>","DATALOADER.global_pay"] },
-  { name:"ГЗК (государственное имущество)", icon:"ti-building-warehouse", scope:"ЭВГА", status:"pending",
+  { name:"ГЗК (государственное имущество)", icon:"ti-building-warehouse", scope:"Планирование аудита", status:"pending",
     statusLabel:"Не подключено — ожидает переноса на продуктив",
     desc:"Отдельная PostgreSQL база (10.58.57.113, схема PUBLIC). Договоры, бюджетные программы, платежи по гос.имуществу. В текущем конвейере закомментировано.",
     tables:["e_contract","e_budget_program","e_payment"] },
-  { name:"Excel — ручная загрузка", icon:"ti-file-spreadsheet", scope:"ЭВГА", status:"manual",
+  { name:"Excel — ручная загрузка", icon:"ti-file-spreadsheet", scope:"Планирование аудита", status:"manual",
     statusLabel:"Ручная загрузка, не автоматизировано",
     desc:"Ключевой мастер-справочник субъектов ГУ/АБП и данные о передаче государственного имущества.",
     tables:["EMF-export.xls — справочник субъектов ГУ/АБП","Договора КрАр/ДУ.xlsx — передача гос.имущества"] },
-  { name:"Салык.кз (лицевой счёт налогоплательщика)", icon:"ti-receipt-tax", scope:"ЭВГА", status:"connected",
+  { name:"Салык.кз (лицевой счёт налогоплательщика)", icon:"ti-receipt-tax", scope:"Планирование аудита", status:"connected",
     statusLabel:"Подключено",
     desc:"Сверка краткосрочной дебиторской/кредиторской задолженности объекта (по расчётам с бюджетом) с данными лицевого счёта на портале «Салык.кз» — для выявления искажений бухгалтерской отчётности.",
     tables:["Лицевой счёт налогоплательщика — расчёты с бюджетом по налоговым, неналоговым и специальным поступлениям и платежам"] },
@@ -3929,7 +3935,7 @@ let semiAnnualLists = [];
 let perechenApproved = false;
 let perechenTab = 'draft';
 let sentToModule = {}; // o.name -> 'ЭВГА' | 'Проф. контроль' — что уже отправлено из СУР, чтобы не дублировать
-let formedPerechni = []; // {number, date, period, objects:[...], byRegion:{region:[obj,...]}} — сформированные и утверждённые перечни ЭВГА
+let formedPerechni = []; // {number, date, period, objects:[...], byRegion:{region:[obj,...]}} — сформированные и утверждённые перечни (направление «Планирование аудита»)
 let dfoImport = {package:'DFO-RISK-2026-H1-0041', date:'05.08.2026, 09:14', checksum:'A3F9C1E7', count:96};
 let dfoImporting = false;
 let lastCalc = {date:'05.08.2026, 09:20', count:96};
@@ -3998,7 +4004,7 @@ function perechenArtifactLabel(){
   return currentContour === 'b' ? 'Годовой список' : 'Перечень объектов';
 }
 function renderPerechenMain(){
-  document.getElementById('perechen-contour-pill').textContent = currentContour==='b' ? 'ЭВГА' : 'Проф. контроль';
+  document.getElementById('perechen-contour-pill').textContent = currentContour==='b' ? 'Планирование аудита' : 'Проф. контроль';
   setPerechenTab(perechenTab);
 }
 function setPerechenTab(tab){
@@ -4009,17 +4015,23 @@ function setPerechenTab(tab){
   document.getElementById('perechen-approved-content').style.display = tab==='approved' ? 'block' : 'none';
   if(tab==='draft') renderPerechenDraft(); else renderPerechenApproved();
 }
-function perechenStatusBadge(status){
+function perechenStatusBadge(status, contour){
+  const isB = contour === 'b';
   const map = {
     draft: '<span class="badge low">Проект</span>',
+    regional_review: '<span class="badge mid">На рассмотрении в ДВГА</span>',
     coordination: '<span class="badge mid">На согласовании</span>',
-    approval: '<span class="badge mid">На утверждении</span>',
-    approved: '<span class="badge sent">Утверждён</span>',
+    approval: isB ? '<span class="badge mid">На утверждении Председателем КВГА</span>' : '<span class="badge mid">На утверждении</span>',
+    approved: isB ? '<span class="badge sent">Утверждён Председателем КВГА</span>' : '<span class="badge sent">Утверждён</span>',
   };
   return map[status] || status;
 }
 function perechenActionButton(l, i){
-  if(l.status === 'draft') return `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="sendForCoordination(${i})"><i class="ti ti-send"></i>На согласование</button>`;
+  const isB = l.contour === 'b';
+  if(l.status === 'draft') return isB
+    ? `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="sendForRegionalReview(${i})"><i class="ti ti-send"></i>В ДВГА на рассмотрение</button>`
+    : `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="sendForCoordination(${i})"><i class="ti ti-send"></i>На согласование</button>`;
+  if(l.status === 'regional_review') return `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="returnFromRegionalReview(${i})"><i class="ti ti-corner-down-left"></i>Вернуть отфильтрованный результат</button>`;
   if(l.status === 'coordination') return `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="sendForApproval(${i})"><i class="ti ti-send"></i>На утверждение</button>`;
   if(l.status === 'approval') return `<button class="btn btn-primary" style="height:28px;padding:0 10px;font-size:12px;" onclick="finalizeApproval(${i})"><i class="ti ti-check"></i>Утвердить</button>`;
   return '';
@@ -4038,7 +4050,7 @@ function renderPerechenDraft(){
       <tbody>${drafts.length ? drafts.map(({l,i})=>`
         <tr class="row" onclick="openGroupDetail('semiannual', ${i})">
           <td>${l.name}</td><td style="color:var(--text-2);">${l.year}</td><td>${l.count}</td>
-          <td>${perechenStatusBadge(l.status)}</td>
+          <td>${perechenStatusBadge(l.status, l.contour)}</td>
           <td onclick="event.stopPropagation()">${perechenActionButton(l, i)}</td>
         </tr>`).join('') :
         `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">Пока не сформировано ни одного проекта — отметьте объекты галочками на вкладке «Проверка»</td></tr>`}</tbody>
@@ -4047,10 +4059,10 @@ function renderPerechenDraft(){
 function renderPerechenApproved(){
   const el = document.getElementById('perechen-approved-content');
   const label = perechenArtifactLabel();
-  const recipient = currentContour==='b' ? 'территориальные ДВГА и все СВА' : 'КПСиСУ';
+  const approvedHeading = currentContour==='b' ? 'Утверждены Председателем КВГА — переданы в модуль ЭВГА' : 'Утверждённые — направлены в КПСиСУ';
   const approved = semiAnnualLists.map((l,i)=>({l,i})).filter(x=>x.l.contour===currentContour && x.l.status==='approved');
   el.innerHTML = `
-    <div class="section-title" style="margin-top:0;">Утверждённые — направлены в ${recipient} (${approved.length})</div>
+    <div class="section-title" style="margin-top:0;">${approvedHeading} (${approved.length})</div>
     <div class="card"><table>
       <thead><tr><th>${label}</th><th style="width:130px;">Год</th><th style="width:90px;">Объектов</th><th style="width:190px;">Статус</th></tr></thead>
       <tbody>${approved.length ? approved.map(({l,i})=>`
@@ -4067,11 +4079,11 @@ function setCriteriaContour(c){
   document.getElementById('crit-checktype-switch').style.display = c==='a' ? 'flex' : 'none';
   document.getElementById('crit-table-a').style.display = c==='a' ? 'block' : 'none';
   if(c==='a'){ critChecktypeMode = 'visit'; document.getElementById('crit-ct-visit').classList.add('active'); document.getElementById('crit-ct-compliance').classList.remove('active'); }
-  document.getElementById('crit-crumb').textContent = c==='b' ? 'СУР ЭВГА / Реестр критериев' : 'СУР Проф.контроль / Реестр критериев';
-  document.getElementById('crit-title').textContent = c==='b' ? 'Реестр критериев — ЭВГА' : 'Реестр критериев — профилактический контроль';
-  document.getElementById('crit-pill').textContent = c==='b' ? 'ЭВГА' : 'Проф. контроль';
+  document.getElementById('crit-crumb').textContent = c==='b' ? 'СУР для планирования годового аудита / Реестр критериев' : 'СУР Проф.контроль / Реестр критериев';
+  document.getElementById('crit-title').textContent = c==='b' ? 'Реестр критериев — планирование годового аудита' : 'Реестр критериев — профилактический контроль';
+  document.getElementById('crit-pill').textContent = c==='b' ? 'Планирование аудита' : 'Проф. контроль';
   document.getElementById('crit-desc').textContent = c==='b'
-    ? 'Справочник критериев государственного аудита (ЭВГА/СВА) — код индикатора, категория объекта, логика скоринга. Версионируется; изменение веса или порога создаёт новую версию критерия (ФТ-2).'
+    ? 'Справочник критериев государственного аудита (планирование аудита/СВА) — код индикатора, категория объекта, логика скоринга. Версионируется; изменение веса или порога создаёт новую версию критерия (ФТ-2).'
     : 'Справочник критериев профилактического контроля — по трём категориям субъектов рынка и по видам проверки (у аудиторских организаций веса различаются для профконтроля с посещением и для проверки на соответствие требованиям). Формула SP — выше, отдельно от весовой таблицы.';
 }
 function renderCriteriaB(){
@@ -4142,8 +4154,8 @@ function renderCriteriaA(){
   document.getElementById('criteria-a-body').innerHTML = any ? html : `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Ничего не найдено</td></tr>`;
 }
 function renderHistory(){
-  document.getElementById('history-crumb').textContent = currentContour==='b' ? 'СУР ЭВГА / История расчётов' : 'СУР Проф.контроль / История расчётов';
-  const prefix = currentContour==='b' ? 'ЭВГА' : 'Проф. контроль';
+  document.getElementById('history-crumb').textContent = currentContour==='b' ? 'СУР для планирования годового аудита / История расчётов' : 'СУР Проф.контроль / История расчётов';
+  const prefix = currentContour==='b' ? 'Планирование аудита' : 'Проф. контроль';
   const rows = historyLog.filter(r => r[1].startsWith(prefix));
   document.getElementById('history-body').innerHTML = rows.map(r=>`
     <tr>
@@ -4157,11 +4169,11 @@ function renderHistory(){
 }
 
 function renderIntegrations(){
-  document.getElementById('integrations-crumb').textContent = currentContour==='b' ? 'СУР ЭВГА / Источники данных' : 'СУР Проф.контроль / Источники данных';
+  document.getElementById('integrations-crumb').textContent = currentContour==='b' ? 'СУР для планирования годового аудита / Источники данных' : 'СУР Проф.контроль / Источники данных';
   document.getElementById('integrations-desc').textContent = currentContour==='b'
-    ? 'Системы, из которых модуль СУР забирает исходные данные для расчёта по направлению ЭВГА (конвейер ETL Stage 1). Нажмите на систему, чтобы увидеть, какие именно таблицы и поля используются.'
+    ? 'Системы, из которых модуль СУР забирает исходные данные для расчёта по направлению планирования годового аудита (конвейер ETL Stage 1). Нажмите на систему, чтобы увидеть, какие именно таблицы и поля используются.'
     : 'Системы, из которых модуль СУР забирает исходные данные для расчёта по направлению профилактического контроля (интеграция с dfo.kz). Нажмите на систему, чтобы увидеть, какие именно таблицы и поля используются.';
-  const scopeWanted = currentContour==='b' ? 'ЭВГА' : 'Проф. контроль';
+  const scopeWanted = currentContour==='b' ? 'Планирование аудита' : 'Проф. контроль';
   const filtered = integrations.filter(it => it.scope === scopeWanted);
   document.getElementById('integrations-list').innerHTML = filtered.map((it,i)=>{
     const idx = integrations.indexOf(it);
@@ -4796,8 +4808,8 @@ function runEvgaRiskAssessment(){
     const note = document.getElementById('evga-calc-note');
     note.style.display = 'block';
     const okCount = dataEVGA.length - notCalculatedList.length;
-    note.innerHTML = `<strong>Оценка рисков ЭВГА завершена.</strong> Рассчитано ${okCount} из ${dataEVGA.length} объектов. ${notCalculatedList.length>0 ? pluralObjects(notCalculatedList.length)+' не рассчитано из-за недостающих данных по отдельным индикаторам — см. таблицу ниже.' : 'Недостающих данных не обнаружено, все объекты рассчитаны полностью.'} Перечень и уровни риска обновлены.${gapAffected>0 ? ` По индикатору «Длительное отсутствие аудиторских мероприятий» пересчитано ${gapAffected} объектов.` : ''}${salykAffected>0 ? ` По индикатору «Сверка с Салык.кз» пересчитано ${salykAffected} объектов.` : ''}${rotationAffected>0 ? ` По индикатору «Ротация аудиторов» пересчитано ${rotationAffected} объектов.` : ''}`;
-    historyLog.unshift([dateStr, 'ЭВГА — оценка рисков (ручной запуск)', 'Аналитик СУР', String(dataEVGA.length), 'ok', `3 мин ${10+Math.floor(Math.random()*50)} с`]);
+    note.innerHTML = `<strong>Оценка рисков объектов аудита завершена.</strong> Рассчитано ${okCount} из ${dataEVGA.length} объектов. ${notCalculatedList.length>0 ? pluralObjects(notCalculatedList.length)+' не рассчитано из-за недостающих данных по отдельным индикаторам — см. таблицу ниже.' : 'Недостающих данных не обнаружено, все объекты рассчитаны полностью.'} Перечень и уровни риска обновлены.${gapAffected>0 ? ` По индикатору «Длительное отсутствие аудиторских мероприятий» пересчитано ${gapAffected} объектов.` : ''}${salykAffected>0 ? ` По индикатору «Сверка с Салык.кз» пересчитано ${salykAffected} объектов.` : ''}${rotationAffected>0 ? ` По индикатору «Ротация аудиторов» пересчитано ${rotationAffected} объектов.` : ''}`;
+    historyLog.unshift([dateStr, 'Планирование аудита — оценка рисков (ручной запуск)', 'Аналитик СУР', String(dataEVGA.length), 'ok', `3 мин ${10+Math.floor(Math.random()*50)} с`]);
     renderTable(); renderCards();
   }, 1100);
 }
@@ -4835,7 +4847,7 @@ function setContour(c){
   document.getElementById('f-year').value = '';
 
   if(c === 'b'){
-    document.getElementById('crumb').textContent = 'СУР ЭВГА / Проверка';
+    document.getElementById('crumb').textContent = 'СУР для планирования годового аудита / Проверка';
     document.getElementById('page-title').textContent = 'Перечень объектов';
     setPerechenMode('subjects');
   } else {
@@ -5044,7 +5056,7 @@ function isEligibleForSend(o){
     if(age !== null && age <= 3) return false; // субъект зарегистрирован не более 3 лет назад — на момент формирования перечня не включается
     return o.risk === 'high' || o.risk === 'direct';
   }
-  return true; // ЭВГА — без требования по уровню риска (см. выше — по статусу ограничение общее)
+  return true; // Планирование аудита — без требования по уровню риска (см. выше — по статусу ограничение общее)
 }
 /* ---------- рендер: субъекты (контур А и Б-по-субъектам) ---------- */
 function renderTable(){
@@ -5138,7 +5150,7 @@ function openPerechenModal(){
   perechenDraftObjects.forEach(o => { (byRegion[o.region] = byRegion[o.region] || []).push(o); });
   const regions = Object.keys(byRegion).sort();
 
-  const nextNumber = `ПГА-ЭВГА-2026-H2-${String(formedPerechni.length + 1).padStart(3,'0')}`;
+  const nextNumber = `ПГА-2026-H2-${String(formedPerechni.length + 1).padStart(3,'0')}`;
   const now = new Date();
   const pad = n => String(n).padStart(2,'0');
   const dateStr = `${pad(now.getDate())}.${pad(now.getMonth()+1)}.${now.getFullYear()}`;
@@ -5162,7 +5174,7 @@ function openPerechenModal(){
     html += `</tbody></table>`;
   });
 
-  html += `<div class="note" style="margin-top:16px;">При утверждении копия перечня будет направлена территориальным ДВГА (по регионам выше) и всем службам внутреннего аудита (СВА) в пределах данных регионов.</div>`;
+  html += `<div class="note" style="margin-top:16px;">Перечень будет направлен на рассмотрение территориальным ДВГА (по регионам выше); после фильтрации и возврата результатов Управление информатизации и анализа рисков КВГА сформирует перечень и передаст его на согласование и утверждение Председателю КВГА.</div>`;
 
   document.getElementById('perechen-modal-body').innerHTML = html;
   document.getElementById('perechen-modal-backdrop').style.display = 'flex';
@@ -5176,7 +5188,7 @@ function closePerechenModal(){
 }
 
 function confirmFormPerechen(){
-  const number = `ПГА-ЭВГА-2026-H2-${String(formedPerechni.length + 1).padStart(3,'0')}`;
+  const number = `ПГА-2026-H2-${String(formedPerechni.length + 1).padStart(3,'0')}`;
   const now = new Date();
   const pad = n => String(n).padStart(2,'0');
   const dateStr = `${pad(now.getDate())}.${pad(now.getMonth()+1)}.${now.getFullYear()}, ${pad(now.getHours())}:${pad(now.getMinutes())}`;
@@ -5198,7 +5210,7 @@ function confirmFormPerechen(){
   const note = document.getElementById('send-module-note');
   if(note){
     note.style.display = 'block';
-    note.innerHTML = `<strong>Перечень ${number} утверждён и направлен.</strong> ${count} ${count===1?'объект включён':'объектов включено'}; уведомления направлены территориальным ДВГА и СВА по ${regionCount} ${regionCount===1?'региону':'регионам'}. <a onclick="showPerechenHistory()" style="cursor:pointer;">Посмотреть историю перечней</a>`;
+    note.innerHTML = `<strong>Перечень ${number} утверждён Председателем КВГА.</strong> ${count} ${count===1?'объект включён':'объектов включено'}; перечень передан в модуль ЭВГА для проведения аудиторских мероприятий. <a onclick="showPerechenHistory()" style="cursor:pointer;">Посмотреть историю перечней</a>`;
   }
 }
 
@@ -5400,11 +5412,11 @@ function openDetail(type, i){
     currentDetailIsSum = isB;
     document.getElementById('d-title').textContent = o.name;
     document.getElementById('d-sub').textContent = isB
-      ? `${o.kind} · ЭВГА`
+      ? `${o.kind} · Планирование аудита`
       : `${o.kind} · Проф. контроль · ${o.checkType}`;
     document.getElementById('d-badge').textContent = riskLabelFor(o.risk);
     document.getElementById('d-badge').className = 'badge ' + o.risk;
-    document.getElementById('top-stat-grid').style.display = isB ? 'grid' : 'none';
+    document.getElementById('top-stat-grid').style.display = isB ? 'block' : 'none';
     document.getElementById('d-score-lbl').textContent = isB ? 'Балл, 3 года' : 'Балл R';
     document.getElementById('d-score').textContent = o.score;
     document.getElementById('d-thresh-lbl').textContent = isB ? 'Порог A / B в группе' : 'Пороги высокий / средний';
@@ -5464,10 +5476,10 @@ function openDetail(type, i){
     currentDetailObj = o;
     currentDetailIsSum = true;
     document.getElementById('d-title').textContent = o.name;
-    document.getElementById('d-sub').textContent = `АБП, код ${o.code} · Перечень АБП · ЭВГА`;
+    document.getElementById('d-sub').textContent = `АБП, код ${o.code} · Перечень АБП · Планирование аудита`;
     document.getElementById('d-badge').textContent = riskLabelB[o.risk];
     document.getElementById('d-badge').className = 'badge ' + o.risk;
-    document.getElementById('top-stat-grid').style.display = 'grid';
+    document.getElementById('top-stat-grid').style.display = 'block';
     document.getElementById('d-score-lbl').textContent = 'Балл АБП, 3 года';
     document.getElementById('d-score').textContent = o.score;
     document.getElementById('d-thresh-lbl').textContent = 'Порог C / D по АБП';
@@ -5484,12 +5496,16 @@ function openDetail(type, i){
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;"><span style="color:var(--text-muted);">Последняя проверка</span><strong>${o.lastInspection.date} · ${o.lastInspection.type}</strong></div>
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;"><span style="color:var(--text-muted);">Финансирование, млн ₸ (2024 / 2025 / 2026 / итого)</span><strong>${abpFinByYear(o,'2024')} / ${abpFinByYear(o,'2025')} / ${abpFinByYear(o,'2026')} / ${abpTotalFin(o)}</strong></div>
       </div>`;
-    document.getElementById('d-crit').innerHTML = abpSummaryHtml + o.sub.map(g=>`
-      <div class="crit-row" style="cursor:pointer;" onclick="openSubjectByName('${g[0].replace(/'/g,"\\'")}')">
-        <span class="crit-name">${g[0]}</span>
-        <span class="crit-val">${g[1]} балл.</span>
-        <i class="ti ti-chevron-right" style="color:var(--text-muted);"></i>
-      </div>`).join('') + '<div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Нажмите на учреждение, чтобы открыть его карточку в контуре Б</div>';
+    document.getElementById('d-crit').innerHTML = abpSummaryHtml + `<div class="card"><table>
+      <thead><tr><th>Государственное учреждение</th><th style="width:130px;">Балл</th><th style="width:40px;"></th></tr></thead>
+      <tbody>${o.sub.map(g=>`
+        <tr class="row" style="cursor:pointer;" onclick="openSubjectByName('${g[0].replace(/'/g,"\\'")}')">
+          <td>${g[0]}</td>
+          <td>${g[1]} балл.</td>
+          <td style="text-align:right;"><i class="ti ti-chevron-right" style="color:var(--text-muted);"></i></td>
+        </tr>`).join('')}</tbody>
+    </table></div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Нажмите на учреждение, чтобы открыть его карточку в контуре Б</div>`;
   }
   if(type === 'subject' && excludedSet.has(currentData[i].name)){
     showExcludedBanner(excludeReasons[currentData[i].name]);
@@ -5516,7 +5532,7 @@ function findSubjectByName(name){
 function openSubjectByName(name){
   const idx = findSubjectByName(name);
   if(idx === null){
-    alert(`Объект «${name}» не найден среди демо-объектов ЭВГА — в этом прототипе для него нет отдельной карточки.`);
+    alert(`Объект «${name}» не найден среди демо-объектов направления «Планирование аудита» — в этом прототипе для него нет отдельной карточки.`);
     return;
   }
   setPerechenMode('subjects');
@@ -5639,33 +5655,38 @@ function showExcludedBanner(reason){
 /* ---------- история баллов по годам ---------- */
 /* ---------- сработавшие критерии: провал в источник ---------- */
 function renderCritList(crit){
-  if(!crit.length) return '<div style="color:var(--text-muted);font-size:13px;">Нет сработавших критериев за период</div>';
-  return crit.map((raw,ci)=>{
+  if(!crit.length) return '<div class="card"><table><tbody><tr><td style="text-align:center;color:var(--text-muted);padding:20px;">Нет сработавших критериев за период</td></tr></tbody></table></div>';
+  const rows = crit.map((raw,ci)=>{
     const isNew = !Array.isArray(raw);
     const code = isNew ? raw.code : raw[0];
     const name = isNew ? raw.name : raw[1];
     const value = isNew ? raw.value : raw[2];
     const note = isNew ? raw.note : raw[3];
     const src = isNew ? raw.source : raw[4];
-    const pointsBadge = isNew ? `<span class="crit-tag mono" title="Балл этого критерия за отчётный год — вклад в сумму по году" style="background:var(--accent-bg);color:var(--accent);">балл ${raw.yearly[['2024','2025','2026'].indexOf(currentDetailObj.year)]}</span>` : '';
-    let html = `<div class="crit-row" ${src?`onclick="toggleCritSource(${ci})" style="cursor:pointer;"`:''}>
-      <span class="crit-code mono">${code}</span>
-      <span class="crit-name">${name}</span>
-      <span class="crit-val">${value}</span>
-      <span class="crit-tag">${note}</span>
-      ${pointsBadge}
-      ${src ? `<i class="ti ti-chevron-${expandedCritIndex===ci?'up':'down'}" style="color:var(--text-muted);flex-shrink:0;"></i>` : ''}
-    </div>`;
+    const pointsBadge = isNew ? `<span class="crit-tag mono" title="Балл этого критерия за отчётный год — вклад в сумму по году" style="background:var(--accent-bg);color:var(--accent);margin-left:6px;">балл ${raw.yearly[['2024','2025','2026'].indexOf(currentDetailObj.year)]}</span>` : '';
+    let html = `<tr class="row" ${src?`onclick="toggleCritSource(${ci})" style="cursor:pointer;"`:''}>
+      <td class="mono">${code}</td>
+      <td>${name}</td>
+      <td>${value}</td>
+      <td><span class="crit-tag">${note}</span>${pointsBadge}</td>
+      <td style="text-align:right;">${src ? `<i class="ti ti-chevron-${expandedCritIndex===ci?'up':'down'}" style="color:var(--text-muted);"></i>` : ''}</td>
+    </tr>`;
     if(src && expandedCritIndex===ci){
-      html += `<div class="card" style="padding:12px 14px;margin:-2px 0 8px;background:var(--surface-alt);">
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">${src.system} · ${src.doc}</div>
-        <div style="font-size:12.5px;font-weight:500;margin-bottom:6px;">${src.field} <span style="font-weight:400;color:var(--text-muted);">(${src.period})</span></div>
-        <div style="font-size:12.5px;font-style:italic;color:var(--text-2);border-left:2px solid var(--accent);padding-left:10px;">«${src.excerpt}»</div>
-        ${isNew ? `<div style="font-size:12px;color:var(--text-2);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">Балл по годам: 2024 — <strong>${raw.yearly[0]}</strong> · 2025 — <strong>${raw.yearly[1]}</strong> · 2026 — <strong>${raw.yearly[2]}</strong></div>` : ''}
-      </div>`;
+      html += `<tr><td colspan="5" style="padding:0;border-top:0;">
+        <div style="padding:12px 14px 14px;margin:-1px 10px 10px;background:var(--surface-alt);border-radius:8px;">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">${src.system} · ${src.doc}</div>
+          <div style="font-size:12.5px;font-weight:500;margin-bottom:6px;">${src.field} <span style="font-weight:400;color:var(--text-muted);">(${src.period})</span></div>
+          <div style="font-size:12.5px;font-style:italic;color:var(--text-2);border-left:2px solid var(--accent);padding-left:10px;">«${src.excerpt}»</div>
+          ${isNew ? `<div style="font-size:12px;color:var(--text-2);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">Балл по годам: 2024 — <strong>${raw.yearly[0]}</strong> · 2025 — <strong>${raw.yearly[1]}</strong> · 2026 — <strong>${raw.yearly[2]}</strong></div>` : ''}
+        </div>
+      </td></tr>`;
     }
     return html;
   }).join('');
+  return `<div class="card"><table>
+    <thead><tr><th style="width:110px;">Код</th><th>Критерий</th><th style="width:130px;">Значение</th><th>Комментарий</th><th style="width:60px;"></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
 }
 function toggleCritSource(ci){
   expandedCritIndex = expandedCritIndex === ci ? null : ci;
@@ -5730,7 +5751,7 @@ function toggleScoreHistory(){
   panel.style.display = willShow ? 'block' : 'none';
 }
 
-/* ---------- формирование аудиторского мероприятия (ЭВГА) ---------- */
+/* ---------- формирование аудиторского мероприятия (планирование аудита) ---------- */
 function openEngagementForm(){
   document.getElementById('view-list').style.display = 'none';
   document.getElementById('view-detail').style.display = 'none';
@@ -5738,7 +5759,7 @@ function openEngagementForm(){
   document.getElementById('view-engagement').style.display = 'block';
   document.getElementById('nav-check').classList.remove('active');
   document.getElementById('nav-perechen').classList.add('active');
-  document.getElementById('eng-context-label').textContent = 'ЭВГА';
+  document.getElementById('eng-context-label').textContent = 'Планирование аудита';
   document.getElementById('eng-success').style.display = 'none';
   document.getElementById('eng-name').value = '';
   renderEngagementSelection();
@@ -5767,7 +5788,7 @@ function confirmEngagement(){
   const objs = [...selectedIndices].map(i=>currentData[i]).filter(Boolean);
   const eng = {
     name, type: document.getElementById('eng-type').value, quarter: document.getElementById('eng-quarter').value,
-    context: 'ЭВГА', count: objs.length,
+    context: 'Планирование аудита', count: objs.length,
     status: 'formed',
     objects: objs.map(o=>({name:o.name, kind:o.kind, risk:o.risk, score:o.score})),
   };
@@ -5809,7 +5830,7 @@ function openSemiAnnualForm(){
   saWizard = newSaWizard();
   const label = perechenArtifactLabel();
   document.getElementById('sa-title').textContent = `Новый список · ${label.toLowerCase()}`;
-  document.getElementById('sa-context-label').textContent = currentContour==='b' ? 'ЭВГА' : 'Проф. контроль';
+  document.getElementById('sa-context-label').textContent = currentContour==='b' ? 'Планирование аудита' : 'Проф. контроль';
   document.getElementById('sa-version-pill').textContent = 'Проект · версия №1';
   document.getElementById('sa-list-title').innerHTML = `${perechenArtifactLabelPlural()} — все проекты и версии (<span id="sa-total-count">0</span>)`;
   goToSaStep(1);
@@ -6048,7 +6069,7 @@ function renderSaStep4(){
     </div>
     <div class="actions" style="justify-content:flex-end;margin-top:14px;">
       <button class="btn" onclick="exportSaPreview()"><i class="ti ti-file-spreadsheet"></i>Печатная форма Excel</button>
-      <button class="btn" onclick="confirmSemiAnnual(true)">Согласовать</button>
+      <button class="btn" onclick="confirmSemiAnnual(true)">${currentContour==='b' ? 'Сформировать и отправить в ДВГА' : 'Согласовать'}</button>
       <button class="btn btn-primary" id="sa-confirm-btn" onclick="confirmSemiAnnual(false)"><i class="ti ti-check"></i>Сформировать</button>
     </div>`;
 }
@@ -6076,6 +6097,7 @@ function saSnapshotObject(o){
 function confirmSemiAnnual(alsoCoordinate){
   const selected = saWizard.candidates.filter(o => saWizard.candidateSel[currentData.indexOf(o)]);
   const contour = currentContour;
+  const isB = contour === 'b';
   const name = saWizard.periodLabel;
   const list = { name, period: saWizard.periodLabel, year: String(CURRENT_YEAR), count: selected.length, status: 'draft', contour,
     packageId: saWizard.packageId,
@@ -6086,10 +6108,14 @@ function confirmSemiAnnual(alsoCoordinate){
   const el = document.getElementById('sa-success');
   el.style.display = 'block';
   if(alsoCoordinate){
-    list.status = 'coordination';
-    el.innerHTML = `<strong>${perechenArtifactLabel()} «${list.name}» сформирован и сразу отправлен на согласование.</strong> Объектов: ${selected.length}, регионов: ${Object.keys(list.regionResponsible).length}.`;
+    list.status = isB ? 'regional_review' : 'coordination';
+    el.innerHTML = isB
+      ? `<strong>${perechenArtifactLabel()} «${list.name}» сформирован и сразу отправлен на рассмотрение в территориальные ДВГА.</strong> Объектов: ${selected.length}, регионов: ${Object.keys(list.regionResponsible).length}.`
+      : `<strong>${perechenArtifactLabel()} «${list.name}» сформирован и сразу отправлен на согласование.</strong> Объектов: ${selected.length}, регионов: ${Object.keys(list.regionResponsible).length}.`;
   } else {
-    el.innerHTML = `<strong>${perechenArtifactLabel()} «${list.name}» сформирован как проект.</strong> Объектов: ${selected.length}, регионов: ${Object.keys(list.regionResponsible).length}. Готов к отправке на согласование.`;
+    el.innerHTML = isB
+      ? `<strong>${perechenArtifactLabel()} «${list.name}» сформирован как проект.</strong> Объектов: ${selected.length}, регионов: ${Object.keys(list.regionResponsible).length}. Готов к отправке на рассмотрение в территориальные ДВГА.`
+      : `<strong>${perechenArtifactLabel()} «${list.name}» сформирован как проект.</strong> Объектов: ${selected.length}, регионов: ${Object.keys(list.regionResponsible).length}. Готов к отправке на согласование.`;
   }
   saWizard = newSaWizard();
   goToSaStep(1);
@@ -6103,7 +6129,7 @@ function renderSemiAnnualLists(){
   document.getElementById('sa-list-body').innerHTML = rows.length ? rows.map(({l,i})=>`
     <tr class="row" onclick="openGroupDetail('semiannual', ${i})">
       <td>${l.name}</td><td style="color:var(--text-2);">${l.year}</td><td>${l.count}</td>
-      <td>${perechenStatusBadge(l.status)}</td>
+      <td>${perechenStatusBadge(l.status, l.contour)}</td>
       <td onclick="event.stopPropagation()">${perechenActionButton(l, i)}</td>
     </tr>
   `).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">Пока ничего не сформировано</td></tr>`;
@@ -6118,18 +6144,29 @@ function sendForApproval(i){
   renderSemiAnnualLists();
   renderPerechenDraft();
 }
+function sendForRegionalReview(i){
+  semiAnnualLists[i].status = 'regional_review';
+  renderSemiAnnualLists();
+  renderPerechenDraft();
+}
+function returnFromRegionalReview(i){
+  semiAnnualLists[i].status = 'coordination';
+  renderSemiAnnualLists();
+  renderPerechenDraft();
+}
 function finalizeApproval(i){
   const l = semiAnnualLists[i];
   l.status = 'approved';
   const moduleName = l.contour==='b' ? 'ЭВГА' : 'Проф. контроль';
   l.objects.forEach(o => { sentToModule[o.name] = moduleName; });
-  const recipient = l.contour==='b' ? 'территориальным ДВГА и всем СВА в пределах затронутых регионов' : 'КПСиСУ';
   renderSemiAnnualLists();
   renderPerechenDraft();
   renderTable(); renderCards();
   const el = document.getElementById('sa-success');
   el.style.display = 'block';
-  el.innerHTML = `<strong>${perechenArtifactLabelFor(l.contour)} «${l.name}» утверждён.</strong> Направлен ${recipient}. Объекты теперь помечены как переданные и недоступны для повторного включения в перечень.`;
+  el.innerHTML = l.contour==='b'
+    ? `<strong>${perechenArtifactLabelFor(l.contour)} «${l.name}» утверждён Председателем КВГА.</strong> Передан в модуль ЭВГА для проведения аудиторских мероприятий. Объекты теперь помечены как переданные и недоступны для повторного включения в перечень.`
+    : `<strong>${perechenArtifactLabelFor(l.contour)} «${l.name}» утверждён.</strong> Направлен КПСиСУ. Объекты теперь помечены как переданные и недоступны для повторного включения в перечень.`;
 }
 function perechenArtifactLabelFor(contour){
   return contour === 'b' ? 'Годовой список' : 'Перечень объектов';
@@ -6161,12 +6198,13 @@ function renderGroupDetailBody(){
   const { index } = currentGroupDetail;
   const item = semiAnnualLists[index];
   document.getElementById('gd-title').textContent = item.name;
-  const statusTextMap = {draft:'Проект', coordination:'На согласовании', approval:'На утверждении', approved:'Утверждён'};
-  const statusClassMap = {draft:'low', coordination:'mid', approval:'mid', approved:'sent'};
+  const gdIsB = item.contour === 'b';
+  const statusTextMap = {draft:'Проект', regional_review:'На рассмотрении в ДВГА', coordination:'На согласовании', approval: gdIsB ? 'На утверждении Председателем КВГА' : 'На утверждении', approved: gdIsB ? 'Утверждён Председателем КВГА' : 'Утверждён'};
+  const statusClassMap = {draft:'low', regional_review:'mid', coordination:'mid', approval:'mid', approved:'sent'};
   document.getElementById('gd-status').textContent = statusTextMap[item.status] || item.status;
   document.getElementById('gd-status').className = 'badge ' + (statusClassMap[item.status] || 'low');
   const periodTxt = item.contour === 'b' ? `${item.year} год` : `${item.period} ${item.year} года`;
-  document.getElementById('gd-meta').textContent = `${periodTxt} · ${item.contour==='b' ? 'ЭВГА' : 'Проф. контроль'} · ${perechenArtifactLabelFor(item.contour)}`;
+  document.getElementById('gd-meta').textContent = `${periodTxt} · ${item.contour==='b' ? 'Планирование аудита' : 'Проф. контроль'} · ${perechenArtifactLabelFor(item.contour)}`;
   document.getElementById('gd-count').textContent = item.count;
   const labelFn = item.contour === 'b' ? riskLabelB : riskLabelA;
   const showX = groupEditMode;
@@ -6384,7 +6422,7 @@ function updateApprovalUI(){
     pill.textContent = 'Утверждён';
     pill.className = 'pill approved';
     note.style.display = 'block';
-    note.innerHTML = '<strong>Перечень утверждён и опубликован.</strong> Направлен территориальным ДВГА и всем СВА одновременно, размещён на официальном сайте КВГА (раздел 6.10, СУР-Б.4).';
+    note.innerHTML = '<strong>Перечень утверждён Председателем КВГА.</strong> Передан в модуль ЭВГА для проведения аудиторских мероприятий; размещён на официальном сайте КВГА (раздел 6.10, СУР-Б.4).';
     exportBtn.disabled = false;
     exportBtn.style.opacity = '1';
     exportBtn.style.cursor = 'pointer';
@@ -6476,8 +6514,8 @@ function setAnalyticsTab(tab){
   if(tab==='dash') renderDashboard(); else onReportTypeChange();
 }
 function renderAnalyticsMain(){
-  document.getElementById('analytics-crumb').textContent = currentContour==='b' ? 'СУР ЭВГА / Аналитика' : 'СУР Проф.контроль / Аналитика';
-  document.getElementById('analytics-pill').textContent = currentContour==='b' ? 'ЭВГА — дашборды и отчёты' : 'Проф.контроль — дашборды и отчёты';
+  document.getElementById('analytics-crumb').textContent = currentContour==='b' ? 'СУР для планирования годового аудита / Аналитика' : 'СУР Проф.контроль / Аналитика';
+  document.getElementById('analytics-pill').textContent = currentContour==='b' ? 'Планирование аудита — дашборды и отчёты' : 'Проф.контроль — дашборды и отчёты';
   setAnalyticsTab(analyticsTab);
 }
 function renderDashboard(){
@@ -6528,9 +6566,9 @@ function renderDashboard(){
 
 /* ---------- Отчёты: конфигурируемая выгрузка ---------- */
 const reportTypeMeta = {
-  perechen_b: {label:'Перечень объектов — ЭВГА', hasYear:true, hasRisk:true},
+  perechen_b: {label:'Перечень объектов — планирование аудита', hasYear:true, hasRisk:true},
   perechen_a: {label:'Перечень объектов — Проф. контроль', hasYear:true, hasRisk:true},
-  criteria_b: {label:'Реестр критериев — ЭВГА', hasYear:false, hasRisk:false},
+  criteria_b: {label:'Реестр критериев — планирование аудита', hasYear:false, hasRisk:false},
   history:    {label:'История расчётов', hasYear:false, hasRisk:false},
 };
 function onReportTypeChange(){
