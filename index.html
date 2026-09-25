@@ -523,17 +523,15 @@
 
           <div id="requisites-block-a">
             <div class="section-title">Реквизиты объекта</div>
-            <div class="card" style="margin-top:8px;"><table>
-              <tbody>
-                <tr><th style="width:260px;">БИН</th><td class="mono" id="da-bin" style="font-size:15px;">—</td></tr>
-                <tr><th>Категория субъекта</th><td id="da-category" style="font-size:14px;">—</td></tr>
-                <tr><th>Статус объекта</th><td id="da-status" style="font-size:14px;">—</td></tr>
-                <tr><th>Регион</th><td id="da-region" style="font-size:14px;">—</td></tr>
-                <tr><th>Категория предпринимательства</th><td id="da-bizcat" style="font-size:14px;">—</td></tr>
-                <tr><th>Дата и тип посл. проверки</th><td id="da-lastaudit" style="font-size:14px;">—</td></tr>
-                <tr><th>Отчётный год</th><td id="da-year" style="font-size:14px;">—</td></tr>
-              </tbody>
-            </table></div>
+            <div class="stat-grid" style="margin-top:0;">
+              <div class="stat"><div class="lbl">БИН</div><div class="val mono" id="da-bin" style="font-size:15px;">—</div></div>
+              <div class="stat"><div class="lbl">Категория субъекта</div><div class="val" id="da-category" style="font-size:14px;">—</div></div>
+              <div class="stat"><div class="lbl">Статус объекта</div><div class="val" id="da-status" style="font-size:14px;">—</div></div>
+              <div class="stat"><div class="lbl">Регион</div><div class="val" id="da-region" style="font-size:14px;">—</div></div>
+              <div class="stat"><div class="lbl">Категория предпринимательства</div><div class="val" id="da-bizcat" style="font-size:14px;">—</div></div>
+              <div class="stat"><div class="lbl">Дата и тип посл. проверки</div><div class="val" id="da-lastaudit" style="font-size:14px;">—</div></div>
+              <div class="stat"><div class="lbl">Отчётный год</div><div class="val" id="da-year" style="font-size:14px;">—</div></div>
+            </div>
           </div>
 
           <div id="calc-breakdown" style="display:none;">
@@ -5699,38 +5697,68 @@ function showExcludedBanner(reason){
 /* ---------- история баллов по годам ---------- */
 /* ---------- сработавшие критерии: провал в источник ---------- */
 function renderCritList(crit){
-  if(!crit.length) return '<div class="card"><table><tbody><tr><td style="text-align:center;color:var(--text-muted);padding:20px;">Нет сработавших критериев за период</td></tr></tbody></table></div>';
-  const rows = crit.map((raw,ci)=>{
+  if(currentContour === 'b'){
+    if(!crit.length) return '<div class="card"><table><tbody><tr><td style="text-align:center;color:var(--text-muted);padding:20px;">Нет сработавших критериев за период</td></tr></tbody></table></div>';
+    const rows = crit.map((raw,ci)=>{
+      const isNew = !Array.isArray(raw);
+      const code = isNew ? raw.code : raw[0];
+      const name = isNew ? raw.name : raw[1];
+      const value = isNew ? raw.value : raw[2];
+      const note = isNew ? raw.note : raw[3];
+      const src = isNew ? raw.source : raw[4];
+      const pointsBadge = isNew ? `<span class="crit-tag mono" title="Балл этого критерия за отчётный год — вклад в сумму по году" style="background:var(--accent-bg);color:var(--accent);margin-left:6px;">балл ${raw.yearly[['2024','2025','2026'].indexOf(currentDetailObj.year)]}</span>` : '';
+      let html = `<tr class="row" ${src?`onclick="toggleCritSource(${ci})" style="cursor:pointer;"`:''}>
+        <td class="mono">${code}</td>
+        <td>${name}</td>
+        <td>${value}</td>
+        <td><span class="crit-tag">${note}</span>${pointsBadge}</td>
+        <td style="text-align:right;">${src ? `<i class="ti ti-chevron-${expandedCritIndex===ci?'up':'down'}" style="color:var(--text-muted);"></i>` : ''}</td>
+      </tr>`;
+      if(src && expandedCritIndex===ci){
+        html += `<tr><td colspan="5" style="padding:0;border-top:0;">
+          <div style="padding:12px 14px 14px;margin:-1px 10px 10px;background:var(--surface-alt);border-radius:8px;">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">${src.system} · ${src.doc}</div>
+            <div style="font-size:12.5px;font-weight:500;margin-bottom:6px;">${src.field} <span style="font-weight:400;color:var(--text-muted);">(${src.period})</span></div>
+            <div style="font-size:12.5px;font-style:italic;color:var(--text-2);border-left:2px solid var(--accent);padding-left:10px;">«${src.excerpt}»</div>
+            ${isNew ? `<div style="font-size:12px;color:var(--text-2);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">Балл по годам: 2024 — <strong>${raw.yearly[0]}</strong> · 2025 — <strong>${raw.yearly[1]}</strong> · 2026 — <strong>${raw.yearly[2]}</strong></div>` : ''}
+          </div>
+        </td></tr>`;
+      }
+      return html;
+    }).join('');
+    return `<div class="card"><table>
+      <thead><tr><th style="width:110px;">Код</th><th>Критерий</th><th style="width:130px;">Значение</th><th>Комментарий</th><th style="width:60px;"></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+  }
+  // СУР Проф.контроль — original pre-redesign card/list presentation (unchanged design)
+  if(!crit.length) return '<div style="color:var(--text-muted);font-size:13px;">Нет сработавших критериев за период</div>';
+  return crit.map((raw,ci)=>{
     const isNew = !Array.isArray(raw);
     const code = isNew ? raw.code : raw[0];
     const name = isNew ? raw.name : raw[1];
     const value = isNew ? raw.value : raw[2];
     const note = isNew ? raw.note : raw[3];
     const src = isNew ? raw.source : raw[4];
-    const pointsBadge = isNew ? `<span class="crit-tag mono" title="Балл этого критерия за отчётный год — вклад в сумму по году" style="background:var(--accent-bg);color:var(--accent);margin-left:6px;">балл ${raw.yearly[['2024','2025','2026'].indexOf(currentDetailObj.year)]}</span>` : '';
-    let html = `<tr class="row" ${src?`onclick="toggleCritSource(${ci})" style="cursor:pointer;"`:''}>
-      <td class="mono">${code}</td>
-      <td>${name}</td>
-      <td>${value}</td>
-      <td><span class="crit-tag">${note}</span>${pointsBadge}</td>
-      <td style="text-align:right;">${src ? `<i class="ti ti-chevron-${expandedCritIndex===ci?'up':'down'}" style="color:var(--text-muted);"></i>` : ''}</td>
-    </tr>`;
+    const pointsBadge = isNew ? `<span class="crit-tag mono" title="Балл этого критерия за отчётный год — вклад в сумму по году" style="background:var(--accent-bg);color:var(--accent);">балл ${raw.yearly[['2024','2025','2026'].indexOf(currentDetailObj.year)]}</span>` : '';
+    let html = `<div class="crit-row" ${src?`onclick="toggleCritSource(${ci})" style="cursor:pointer;"`:''}>
+      <span class="crit-code mono">${code}</span>
+      <span class="crit-name">${name}</span>
+      <span class="crit-val">${value}</span>
+      <span class="crit-tag">${note}</span>
+      ${pointsBadge}
+      ${src ? `<i class="ti ti-chevron-${expandedCritIndex===ci?'up':'down'}" style="color:var(--text-muted);flex-shrink:0;"></i>` : ''}
+    </div>`;
     if(src && expandedCritIndex===ci){
-      html += `<tr><td colspan="5" style="padding:0;border-top:0;">
-        <div style="padding:12px 14px 14px;margin:-1px 10px 10px;background:var(--surface-alt);border-radius:8px;">
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">${src.system} · ${src.doc}</div>
-          <div style="font-size:12.5px;font-weight:500;margin-bottom:6px;">${src.field} <span style="font-weight:400;color:var(--text-muted);">(${src.period})</span></div>
-          <div style="font-size:12.5px;font-style:italic;color:var(--text-2);border-left:2px solid var(--accent);padding-left:10px;">«${src.excerpt}»</div>
-          ${isNew ? `<div style="font-size:12px;color:var(--text-2);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">Балл по годам: 2024 — <strong>${raw.yearly[0]}</strong> · 2025 — <strong>${raw.yearly[1]}</strong> · 2026 — <strong>${raw.yearly[2]}</strong></div>` : ''}
-        </div>
-      </td></tr>`;
+      html += `<div class="card" style="padding:12px 14px;margin:-2px 0 8px;background:var(--surface-alt);">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">${src.system} · ${src.doc}</div>
+        <div style="font-size:12.5px;font-weight:500;margin-bottom:6px;">${src.field} <span style="font-weight:400;color:var(--text-muted);">(${src.period})</span></div>
+        <div style="font-size:12.5px;font-style:italic;color:var(--text-2);border-left:2px solid var(--accent);padding-left:10px;">«${src.excerpt}»</div>
+        ${isNew ? `<div style="font-size:12px;color:var(--text-2);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">Балл по годам: 2024 — <strong>${raw.yearly[0]}</strong> · 2025 — <strong>${raw.yearly[1]}</strong> · 2026 — <strong>${raw.yearly[2]}</strong></div>` : ''}
+      </div>`;
     }
     return html;
   }).join('');
-  return `<div class="card"><table>
-    <thead><tr><th style="width:110px;">Код</th><th>Критерий</th><th style="width:130px;">Значение</th><th>Комментарий</th><th style="width:60px;"></th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table></div>`;
 }
 function toggleCritSource(ci){
   expandedCritIndex = expandedCritIndex === ci ? null : ci;
