@@ -340,7 +340,7 @@
         </div>
 
         <div class="toolbar" id="check-toolbar">
-          <select id="f-year" onchange="applyFilters()">
+          <select id="f-year" onchange="applyFilters()" style="display:none">
             <option value="">Все годы</option>
             <option value="2026">2026 год</option>
             <option value="2025">2025 год</option>
@@ -687,7 +687,7 @@
           <table>
             <thead><tr>
               <th>Список</th><th style="width:130px;">Год</th><th style="width:90px;">Объектов</th>
-              <th style="width:150px;">Статус</th><th style="width:190px;"></th>
+              <th style="width:150px;">Статус</th><th style="width:260px;"></th>
             </tr></thead>
             <tbody id="sa-list-body"></tbody>
           </table>
@@ -712,6 +712,7 @@
           <div class="actions">
             <button class="btn" id="gd-edit-btn" onclick="toggleGroupEdit()"><i class="ti ti-edit"></i>Редактировать</button>
             <button class="btn btn-primary" id="gd-add-btn" style="display:none;" onclick="startAddToGroup()"><i class="ti ti-plus"></i>Добавить объекты</button>
+            <button class="btn" id="gd-export-btn" onclick="exportSemiAnnualList(currentGroupDetail.index)"><i class="ti ti-file-spreadsheet"></i>Выгрузить (Excel)</button>
           </div>
           <div class="note" id="gd-locked-note" style="display:none;"></div>
           <div id="gd-amendments"></div>
@@ -1080,6 +1081,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
+const CURRENT_YEAR = 2026; // условное «сегодня» демо-прототипа — синхронизировано с датами пакетов dfo.kz и расчётов
 /* ===================== ДАННЫЕ: КОНТУР Б — ПО КОНТЕКСТАМ ===================== */
 const dataEVGA = [
     {name:"ГУ «Управление энергетики и ЖКХ Мангистауской области»", kind:"ГУ", score:22, risk:"high",
@@ -3946,7 +3948,7 @@ const kpiClsA = ["neutral","high","mid","direct"];
 
 let currentContour = 'b';
 let perechenMode = 'subjects';
-let currentData = dataEVGA;
+let currentData = dataEVGA.filter(o => o.year === String(CURRENT_YEAR)); // только последний отчётный год — см. setPerechenMode()
 let visible = currentData;
 const PAGE_SIZE = 10;
 let currentPage = 1;
@@ -4071,12 +4073,12 @@ function renderPerechenDraft(){
       <button class="btn btn-primary" onclick="openSemiAnnualForm()"><i class="ti ti-folder-plus"></i>Открыть формирование</button>
     </div>
     <div class="card"><table>
-      <thead><tr><th>Наименование</th><th style="width:130px;">Год</th><th style="width:90px;">Объектов</th><th style="width:150px;">Статус</th><th style="width:190px;"></th></tr></thead>
+      <thead><tr><th>Наименование</th><th style="width:130px;">Год</th><th style="width:90px;">Объектов</th><th style="width:150px;">Статус</th><th style="width:260px;"></th></tr></thead>
       <tbody>${drafts.length ? drafts.map(({l,i})=>`
         <tr class="row" onclick="openGroupDetail('semiannual', ${i})">
           <td>${l.name}</td><td style="color:var(--text-2);">${l.year}</td><td>${l.count}</td>
           <td>${perechenStatusBadge(l.status, l.contour)}</td>
-          <td onclick="event.stopPropagation()">${perechenActionButton(l, i)}</td>
+          ${perechenRowActionsCell(l, i)}
         </tr>`).join('') :
         `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">Пока не сформировано ни одного проекта — отметьте объекты галочками на вкладке «Проверка»</td></tr>`}</tbody>
     </table></div>`;
@@ -4089,10 +4091,12 @@ function renderPerechenApproved(){
   el.innerHTML = `
     <div class="section-title" style="margin-top:0;">${approvedHeading} (${approved.length})</div>
     <div class="card"><table>
-      <thead><tr><th>${label}</th><th style="width:130px;">Год</th><th style="width:90px;">Объектов</th><th style="width:190px;">Статус</th></tr></thead>
+      <thead><tr><th>${label}</th><th style="width:130px;">Год</th><th style="width:90px;">Объектов</th><th style="width:190px;">Статус</th><th style="width:120px;"></th></tr></thead>
       <tbody>${approved.length ? approved.map(({l,i})=>`
-        <tr class="row" onclick="openGroupDetail('semiannual', ${i})"><td>${l.name}</td><td style="color:var(--text-2);">${l.year}</td><td>${l.count}</td><td><span class="badge sent">Утверждён и направлен</span></td></tr>`).join('') :
-        `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Утверждённых пока нет</td></tr>`}</tbody>
+        <tr class="row" onclick="openGroupDetail('semiannual', ${i})"><td>${l.name}</td><td style="color:var(--text-2);">${l.year}</td><td>${l.count}</td><td><span class="badge sent">Утверждён и направлен</span></td>
+          <td onclick="event.stopPropagation()"><button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="exportSemiAnnualList(${i})" title="Выгрузить в Excel"><i class="ti ti-file-spreadsheet"></i>Excel</button></td>
+        </tr>`).join('') :
+        `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">Утверждённых пока нет</td></tr>`}</tbody>
     </table></div>`;
 }
 function setCriteriaContour(c){
@@ -4874,6 +4878,7 @@ function setContour(c){
   document.getElementById('f-year').value = '';
   document.getElementById('f-region').value = '';
   document.getElementById('f-region').style.display = c==='b' ? '' : 'none';
+  document.getElementById('f-year').style.display = c==='b' ? 'none' : '';
 
   if(c === 'b'){
     document.getElementById('crumb').textContent = 'СУР для планирования годового аудита / Проверка';
@@ -4938,11 +4943,11 @@ function setPerechenMode(mode){
   if(mode === 'subjects'){
     document.getElementById('page-title').textContent = '';
     document.getElementById('page-pill').textContent = 'Государственные учреждения, АБП, квазигоссектор';
-    currentData = dataEVGA;
+    currentData = dataEVGA.filter(o => o.year === String(CURRENT_YEAR)); // только последний отчётный год
   } else {
     document.getElementById('page-title').textContent = 'Перечень АБП';
     document.getElementById('page-pill').textContent = 'Параллельный расчёт по бюджетным программам';
-    currentData = dataABP;
+    currentData = dataABP.filter(o => o.year === String(CURRENT_YEAR)); // только последний отчётный год
   }
   renderFilterOptions();
   renderKpis();
@@ -4961,10 +4966,10 @@ function renderKpis(){
     values = [scoped.length, scoped.filter(o=>o.risk==='high').length, scoped.filter(o=>o.risk==='mid').length, scoped.filter(o=>o.risk==='direct').length];
   } else if(perechenMode === 'abp'){
     labels = kpiLabelsSubjects; classes = kpiClsSubjects;
-    values = [dataABP.length, dataABP.filter(o=>o.risk==='high').length, dataABP.filter(o=>o.risk==='mid').length, dataABP.filter(o=>o.risk==='low').length];
+    values = [currentData.length, currentData.filter(o=>o.risk==='high').length, currentData.filter(o=>o.risk==='mid').length, currentData.filter(o=>o.risk==='low').length];
   } else {
     labels = kpiLabelsSubjects; classes = kpiClsSubjects;
-    values = [dataEVGA.length, dataEVGA.filter(o=>o.risk==='high').length, dataEVGA.filter(o=>o.risk==='mid').length, dataEVGA.filter(o=>o.risk==='low').length];
+    values = [currentData.length, currentData.filter(o=>o.risk==='high').length, currentData.filter(o=>o.risk==='mid').length, currentData.filter(o=>o.risk==='low').length];
   }
   document.getElementById('kpi-grid').innerHTML = labels.map((l,i)=>`
     <div class="kpi ${classes[i]}"><div class="lbl">${l}</div><div class="val">${values[i]}</div></div>`).join('');
@@ -5066,7 +5071,6 @@ function renderTableHead(){
 }
 
 function updateGroupedButton(){ /* функция формирования перечня удалена из модуля СУР — заглушка на случай недостижимого старого кода */ }
-const CURRENT_YEAR = 2026; // условное «сегодня» демо-прототипа — синхронизировано с датами пакетов dfo.kz и расчётов
 function lastAuditYear(o){
   if(!o.lastAudit || o.lastAudit.date === '—') return null;
   const parts = o.lastAudit.date.split('.');
@@ -5565,16 +5569,16 @@ function showList(){
 
 /* ---------- переход к объекту ГУ из карточки АБП (сквозной поиск по контекстам) ---------- */
 function findSubjectByName(name){
-  const idx = dataEVGA.findIndex(o => o.name === name);
+  const idx = currentData.findIndex(o => o.name === name);
   return idx !== -1 ? idx : null;
 }
 function openSubjectByName(name){
+  setPerechenMode('subjects');
   const idx = findSubjectByName(name);
   if(idx === null){
-    alert(`Объект «${name}» не найден среди демо-объектов направления «Планирование аудита» — в этом прототипе для него нет отдельной карточки.`);
+    alert(`Объект «${name}» не найден среди демо-объектов направления «Планирование аудита» — в этом прототипе для него нет отдельной карточки, либо его отчётный год не относится к текущему циклу (${CURRENT_YEAR}).`);
     return;
   }
-  setPerechenMode('subjects');
   openDetail('subject', idx);
 }
 
@@ -6197,7 +6201,7 @@ function renderSemiAnnualLists(){
     <tr class="row" onclick="openGroupDetail('semiannual', ${i})">
       <td>${l.name}</td><td style="color:var(--text-2);">${l.year}</td><td>${l.count}</td>
       <td>${perechenStatusBadge(l.status, l.contour)}</td>
-      <td onclick="event.stopPropagation()">${perechenActionButton(l, i)}</td>
+      ${perechenRowActionsCell(l, i)}
     </tr>
   `).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">Пока ничего не сформировано</td></tr>`;
 }
@@ -6227,6 +6231,25 @@ function finalizeApproval(i){
 }
 function perechenArtifactLabelFor(contour){
   return contour === 'b' ? 'Годовой список' : 'Перечень объектов';
+}
+function perechenRowActionsCell(l, i){
+  const exportBtn = `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="exportSemiAnnualList(${i})" title="Выгрузить в Excel"><i class="ti ti-file-spreadsheet"></i>Excel</button>`;
+  return `<td onclick="event.stopPropagation()"><div style="display:flex;gap:6px;justify-content:flex-end;">${exportBtn}${perechenActionButton(l, i)}</div></td>`;
+}
+/* ---------- выгрузка сохранённого перечня (проекта либо утверждённого) в Excel/CSV ---------- */
+function exportSemiAnnualList(i){
+  const l = semiAnnualLists[i];
+  if(!l) return;
+  if(!l.objects || !l.objects.length){
+    alert('В составе нет объектов — экспортировать нечего.');
+    return;
+  }
+  const labelFn = l.contour === 'b' ? riskLabelB : riskLabelA;
+  const header = ['№','Наименование субъекта','БИН','Регион','Место регистрации','КО','Дата регистрации','Дата последнего контроля','Вид деятельности','Уровень риска','Основание включения'];
+  const rows = l.objects.map((o,oi)=>[oi+1, o.name, o.bin||'', o.region||'', '', o.koLabel||saKoLabel(o)||'', o.regDate||'', o.lastAuditDate||'', o.category||o.kind||'', labelFn[o.risk]||o.risk||'', (o.basis||'').replace(/<[^>]+>/g,'')]);
+  const statusSlug = {draft:'proekt', coordination:'na_soglasovanii', approval:'na_utverzhdenii', approved:'utverzhden'}[l.status] || l.status;
+  const safeName = l.name.replace(/[«»]/g,'').replace(/\s+/g,'_');
+  downloadCSV(`${statusSlug}_${safeName}.csv`, [header, ...rows]);
 }
 
 /* ---------- рассмотрение результатов СУР территориальными ДВГА по регионам ---------- */
