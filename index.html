@@ -712,6 +712,10 @@
           </div>
           <div class="section-title">Состав</div>
           <div id="gd-objects"></div>
+          <div id="gd-engagements-wrap" style="display:none;margin-top:16px;">
+            <div class="section-title">Аудиторские мероприятия <span style="font-weight:400;color:var(--text-muted);">— наименование и срок для официальной выгрузки перечня</span></div>
+            <div id="gd-engagements"></div>
+          </div>
           <div class="actions">
             <button class="btn" id="gd-edit-btn" onclick="toggleGroupEdit()"><i class="ti ti-edit"></i>Редактировать</button>
             <button class="btn btn-primary" id="gd-add-btn" style="display:none;" onclick="startAddToGroup()"><i class="ti ti-plus"></i>Добавить объекты</button>
@@ -6323,9 +6327,13 @@ function officialEngagementName(region, auditType){
     ? 'Государственный аудит финансовой отчётности администраторов бюджетных программ'
     : `Государственный аудит соответствия планирования, использования бюджетных средств и активов государства по ${regionDative(region)}`;
 }
-function officialEngagementPeriod(auditType, name){
-  if(isFinReportAudit(auditType)) return `2 квартал ${CURRENT_YEAR} года - 1 квартал ${CURRENT_YEAR+1} года`;
-  return OFFICIAL_AUDIT_QUARTERS[seedFromName(name) % 4];
+function finReportPeriodLabel(year){
+  const y = Number(year) || CURRENT_YEAR;
+  return `2 квартал ${y} года - 1 квартал ${y+1} года`;
+}
+function officialEngagementPeriod(auditType, seed, year){
+  if(isFinReportAudit(auditType)) return finReportPeriodLabel(year);
+  return OFFICIAL_AUDIT_QUARTERS[seedFromName(seed) % 4];
 }
 function parseRuAmount(str){
   if(!str) return 0;
@@ -6384,9 +6392,17 @@ function exportApprovedPerechenOfficial(l){
     const groupOrder = [];
     byRegion[region].forEach(o=>{
       const auditType = (o.auditType || 'Аудит соответствия');
-      const period = officialEngagementPeriod(auditType, o.name);
-      const key = auditType + '|' + period;
-      if(!groups[key]){ groups[key] = { auditType, period, name: officialEngagementName(region, auditType), objects: [] }; groupOrder.push(key); }
+      const key = region + '|' + auditType; // одна группа на департамент × тип аудита — совпадает с ключом gd-engagements, чтобы ручные правки (setEngOverride) применялись к тем же строкам
+      if(!groups[key]){
+        const ov = engOverrideFor(l, key);
+        groups[key] = {
+          auditType,
+          period: (ov && ov.period) || officialEngagementPeriod(auditType, key, Y),
+          name: (ov && ov.name) || officialEngagementName(region, auditType),
+          objects: []
+        };
+        groupOrder.push(key);
+      }
       groups[key].objects.push(o);
     });
     groupOrder.sort((ka,kb)=>{
@@ -6432,6 +6448,72 @@ function exportApprovedPerechenOfficial(l){
   XLSX.utils.book_append_sheet(wb, ws, `Перечень ${Y}`.slice(0,31));
   const safeName = (l.name||'perechen').replace(/[«»"]/g,'').replace(/\s+/g,'_');
   XLSX.writeFile(wb, `perechen_obektov_gosaudita_${Y}_${safeName}.xlsx`);
+}
+
+/* ---------- ручной ввод наименования мероприятия и срока проведения (для группы департамент × тип аудита) ---------- */
+function escAttr(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+function engOverrideFor(item, key){
+  return (item.engOverrides && item.engOverrides[key]) || null;
+}
+function computeEngagementGroups(item){
+  const groups = {};
+  const order = [];
+  (item.objects||[]).forEach(o=>{
+    const region = saObjRegion(o);
+    const auditType = o.auditType || 'Аудит соответствия';
+    const key = region + '|' + auditType;
+    if(!groups[key]){ groups[key] = { key, region, auditType, objects: [] }; order.push(key); }
+    groups[key].objects.push(o);
+  });
+  order.sort((ka,kb)=>{
+    const ga = groups[ka], gb = groups[kb];
+    const rc = ga.region.localeCompare(gb.region,'ru');
+    return rc || (ga.auditType||'').localeCompare(gb.auditType||'','ru');
+  });
+  return order.map(k=>groups[k]);
+}
+function renderGroupEngagements(){
+  const { index } = currentGroupDetail;
+  const item = semiAnnualLists[index];
+  const wrap = document.getElementById('gd-engagements-wrap');
+  if(!wrap) return;
+  if(item.contour !== 'b' || !item.objects || !item.objects.length){
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'block';
+  const itemYear = Number(item.year) || CURRENT_YEAR;
+  const periodOptions = OFFICIAL_AUDIT_QUARTERS.concat([finReportPeriodLabel(itemYear)]);
+  const groups = computeEngagementGroups(item);
+  document.getElementById('gd-engagements').innerHTML = groups.map(g=>{
+    const ov = engOverrideFor(item, g.key);
+    const nameVal = (ov && ov.name) || officialEngagementName(g.region, g.auditType);
+    const periodVal = (ov && ov.period) || officialEngagementPeriod(g.auditType, g.key, itemYear);
+    const periodField = `<select onchange="setEngOverride('${g.key.replace(/'/g,"\\'")}','period',this.value)" style="width:100%;">${periodOptions.map(q=>`<option ${q===periodVal?'selected':''}>${escAttr(q)}</option>`).join('')}</select>`;
+    return `
+    <div class="card" style="padding:12px 14px;margin-bottom:8px;">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${departmentNameForRegion(g.region)} · ${(g.auditType||'').toLowerCase()} · объектов: ${g.objects.length}</div>
+      <div style="display:grid;grid-template-columns:1fr 240px;gap:10px;">
+        <div class="field" style="margin:0;">
+          <label>Наименование аудиторского мероприятия</label>
+          <input type="text" value="${escAttr(nameVal)}" onchange="setEngOverride('${g.key.replace(/'/g,"\\'")}','name',this.value)" style="width:100%;">
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Срок проведения аудита</label>
+          ${periodField}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function setEngOverride(key, field, value){
+  const { index } = currentGroupDetail;
+  const item = semiAnnualLists[index];
+  if(!item.engOverrides) item.engOverrides = {};
+  if(!item.engOverrides[key]) item.engOverrides[key] = {};
+  item.engOverrides[key][field] = value;
 }
 
 /* ---------- рассмотрение результатов СУР территориальными ДВГА по регионам ---------- */
@@ -6837,6 +6919,7 @@ function renderGroupDetailBody(){
         <span class="crit-val">${a.date}</span>
       </div>`).join('')}
   ` : '';
+  renderGroupEngagements();
 }
 function toggleGroupEdit(){
   const { index } = currentGroupDetail;
