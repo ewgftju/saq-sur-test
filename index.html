@@ -187,6 +187,7 @@
     <div class="nav-section" id="nav-section-sur">Работа с рисками</div>
     <div class="sur-subnav">
     <button type="button" class="nav-item active" id="nav-check" onclick="showWorkspace('check')" title="Проверка"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h1m3 0h5m-9 4h1m3 0h5m-9 4h1m3 0h5"/></svg><span class="nav-label">Проверка</span></button>
+    <button type="button" class="nav-item" id="nav-dvga" onclick="openDvgaMain()" title="Рассмотрение в ДВГА"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 7 11 7 11z"/><path d="m9.5 10.3 1.8 1.8 3.2-3.6"/></svg><span class="nav-label">Рассмотрение в ДВГА</span></button>
     <button type="button" class="nav-item" id="nav-perechen" onclick="openPerechenMain()" title="Перечень"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="12" height="16" rx="2"/><path d="M9 4h6v2H9z"/><path d="M9 11h6M9 15h4"/></svg><span class="nav-label">Перечень</span></button>
     <button type="button" class="nav-item" id="nav-criteria" onclick="showScreen('criteria')" title="Реестр критериев"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10m4 0h2M4 17h2m4 0h10M14 5v4M6 15v4"/></svg><span class="nav-label">Реестр критериев</span></button>
     <button type="button" class="nav-item" id="nav-history" onclick="showScreen('history')" title="История расчётов"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11a9 9 0 1 1 2.5 7M3 4v7h7m2-4v6l4 2"/></svg><span class="nav-label">История расчётов</span></button>
@@ -348,6 +349,7 @@
           <select id="f-type" onchange="applyFilters()"></select>
           <select id="f-checktype" onchange="applyFilters()" style="display:none;"></select>
           <select id="f-risk" onchange="applyFilters()"></select>
+          <select id="f-region" onchange="applyFilters()"></select>
           <input type="text" id="f-search" placeholder="Поиск по наименованию" oninput="applyFilters()">
           <button class="btn" onclick="exportCSV()"><i class="ti ti-download"></i>Экспорт</button>
           <button class="btn" id="btn-export-abp-xlsx" style="display:none;" onclick="exportAbpIndicatorsXlsx()"><i class="ti ti-file-spreadsheet"></i>Расшифровка (Excel)</button>
@@ -455,6 +457,32 @@
         </div>
         <div id="perechen-draft-content"></div>
         <div id="perechen-approved-content" style="display:none;"></div>
+      </div>
+
+      <div id="view-dvga-main" style="display:none;">
+        <div class="crumb">СУР / Рассмотрение в ДВГА</div>
+        <div class="topbar">
+          <h1>Рассмотрение в ДВГА</h1>
+          <span class="pill">Планирование аудита</span>
+        </div>
+        <p style="color:var(--text-2);font-size:13px;margin-bottom:16px;">Результаты СУР, направленные по регионам объектов на рассмотрение в территориальные департаменты (ДВГА), — до объединения отфильтрованных результатов в проект перечня.</p>
+        <div class="segmented" style="margin-bottom:16px;">
+          <button class="active" id="dtab-active" onclick="setDvgaTab('active')">На рассмотрении</button>
+          <button id="dtab-returned" onclick="setDvgaTab('returned')">Возвращённые в КВГА</button>
+        </div>
+        <div id="dvga-active-content"></div>
+        <div id="dvga-returned-content" style="display:none;"></div>
+      </div>
+
+      <div id="view-dvga-detail" style="display:none;">
+        <a class="back-link" onclick="closeDvgaBatchDetail()"><i class="ti ti-arrow-left"></i>Назад</a>
+        <div class="topbar">
+          <h1 id="dvga-detail-title">—</h1>
+          <span class="badge low" id="dvga-detail-status">—</span>
+        </div>
+        <div id="dvga-detail-meta" style="color:var(--text-2);font-size:13px;margin-bottom:16px;"></div>
+        <div id="dvga-detail-objects"></div>
+        <div id="dvga-detail-actions" style="margin-top:16px;"></div>
       </div>
 
       <div id="view-detail" style="display:none;">
@@ -3935,6 +3963,10 @@ let semiAnnualLists = [];
 let perechenApproved = false;
 let perechenTab = 'draft';
 let sentToModule = {}; // o.name -> 'ЭВГА' | 'Проф. контроль' — что уже отправлено из СУР, чтобы не дублировать
+let regionalBatches = []; // {region, year, contour, sentDate, returnedDate, status:'review'|'coordination'|'signing'|'returned', merged, objects:[{...снимок, kept}]} — рассмотрение результатов СУР территориальными ДВГА по регионам
+let sentToRegion = {}; // o.name -> регион, куда объект направлен на рассмотрение в ДВГА
+let currentDvgaBatch = null; // индекс просматриваемой пачки в разделе «Рассмотрение в ДВГА»
+let dvgaTab = 'active'; // 'active' | 'returned' — активная вкладка раздела «Рассмотрение в ДВГА»
 let formedPerechni = []; // {number, date, period, objects:[...], byRegion:{region:[obj,...]}} — сформированные и утверждённые перечни (направление «Планирование аудита»)
 let dfoImport = {package:'DFO-RISK-2026-H1-0041', date:'05.08.2026, 09:14', checksum:'A3F9C1E7', count:96};
 let dfoImporting = false;
@@ -3959,11 +3991,11 @@ function riskLabelFor(risk){
 }
 
 /* ---------- переключение экранов (сайдбар) ---------- */
-const ALL_NAV_IDS = ['nav-check','nav-perechen','nav-criteria','nav-history','nav-integrations','nav-analytics','nav-oko'];
+const ALL_NAV_IDS = ['nav-check','nav-dvga','nav-perechen','nav-criteria','nav-history','nav-integrations','nav-analytics','nav-oko'];
 function clearAllNav(){
   ALL_NAV_IDS.forEach(id=>{ const el = document.getElementById(id); if(el) el.classList.remove('active'); });
 }
-const ALL_SCREEN_LIST_VIEWS = ['view-list','view-detail','view-perechen-main','view-engagement','view-semiannual','view-final','view-group-detail'];
+const ALL_SCREEN_LIST_VIEWS = ['view-list','view-detail','view-perechen-main','view-dvga-main','view-dvga-detail','view-engagement','view-semiannual','view-final','view-group-detail'];
 function hideAllScreenListViews(){
   ALL_SCREEN_LIST_VIEWS.forEach(id=>{ const el = document.getElementById(id); if(el) el.style.display = 'none'; });
 }
@@ -4019,7 +4051,6 @@ function perechenStatusBadge(status, contour){
   const isB = contour === 'b';
   const map = {
     draft: '<span class="badge low">Проект</span>',
-    regional_review: '<span class="badge mid">На рассмотрении в ДВГА</span>',
     coordination: '<span class="badge mid">На согласовании</span>',
     approval: isB ? '<span class="badge mid">На утверждении Председателем КВГА</span>' : '<span class="badge mid">На утверждении</span>',
     approved: isB ? '<span class="badge sent">Утверждён Председателем КВГА</span>' : '<span class="badge sent">Утверждён</span>',
@@ -4027,11 +4058,7 @@ function perechenStatusBadge(status, contour){
   return map[status] || status;
 }
 function perechenActionButton(l, i){
-  const isB = l.contour === 'b';
-  if(l.status === 'draft') return isB
-    ? `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="sendForRegionalReview(${i})"><i class="ti ti-send"></i>В ДВГА на рассмотрение</button>`
-    : `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="sendForCoordination(${i})"><i class="ti ti-send"></i>На согласование</button>`;
-  if(l.status === 'regional_review') return `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="returnFromRegionalReview(${i})"><i class="ti ti-corner-down-left"></i>Вернуть отфильтрованный результат</button>`;
+  if(l.status === 'draft') return `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="sendForCoordination(${i})"><i class="ti ti-send"></i>На согласование</button>`;
   if(l.status === 'coordination') return `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="sendForApproval(${i})"><i class="ti ti-send"></i>На утверждение</button>`;
   if(l.status === 'approval') return `<button class="btn btn-primary" style="height:28px;padding:0 10px;font-size:12px;" onclick="finalizeApproval(${i})"><i class="ti ti-check"></i>Утвердить</button>`;
   return '';
@@ -4835,16 +4862,19 @@ function setContour(c){
   currentContour = c;
   selectedIndices.clear();
   document.getElementById('nav-oko').style.display = c==='b' ? 'flex' : 'none';
+  document.getElementById('nav-dvga').style.display = c==='b' ? 'flex' : 'none';
   document.getElementById('dfo-import-panel').style.display = c==='a' ? 'block' : 'none';
   document.getElementById('row-context').style.display = c==='b' ? 'flex' : 'none';
   document.getElementById('row-checktype-tabs').style.display = c==='a' ? 'flex' : 'none';
   document.getElementById('dfo-import-note').style.display = 'none';
   document.getElementById('evga-calc-panel').style.display = c==='b' ? 'block' : 'none';
   document.getElementById('evga-calc-note').style.display = 'none';
+  document.getElementById('send-module-note').style.display = 'none';
   document.getElementById('not-calculated-panel').style.display = (c==='b' && notCalculatedList.length>0) ? 'block' : 'none';
   document.getElementById('f-checktype').style.display = 'none';
   document.getElementById('f-search').value = '';
   document.getElementById('f-year').value = '';
+  document.getElementById('f-region').value = '';
 
   if(c === 'b'){
     document.getElementById('crumb').textContent = 'СУР для планирования годового аудита / Проверка';
@@ -4946,6 +4976,7 @@ function renderFilterOptions(){
   const typeSel = document.getElementById('f-type');
   const riskSel = document.getElementById('f-risk');
   const ctSel = document.getElementById('f-checktype');
+  populateMainRegionFilter();
   if(currentContour === 'b'){
     typeSel.innerHTML = `<option value="">Все типы аудита</option>
       <option>Аудит соответствия</option><option>Аудит финансовой отчётности</option>`;
@@ -4966,14 +4997,17 @@ function applyFilters(){
   const year = document.getElementById('f-year').value;
   const type = document.getElementById('f-type').value;
   const risk = document.getElementById('f-risk').value;
+  const region = document.getElementById('f-region').value;
   const ct = currentContour==='a' ? (checktypeMode==='visit' ? 'Профконтроль с посещением' : 'Проверка на соответствие требованиям') : '';
   const q = document.getElementById('f-search').value.trim().toLowerCase();
   const isABP = currentContour==='b' && perechenMode==='abp';
   visible = currentData.filter(o => {
     const name = isABP ? o.name : o.name;
+    const objRegion = o.region || deriveRegion(o.name);
     return (!year || o.year === year) &&
       (isABP || !type || o.auditType === type) &&
       (!risk || o.risk === risk) &&
+      (!region || objRegion === region) &&
       (currentContour!=='a' || !ct || o.checkType === ct) &&
       (!q || name.toLowerCase().includes(q));
   });
@@ -5098,7 +5132,7 @@ function renderTable(){
     <tr class="row" style="${excluded?'opacity:.5;':''}" onclick="openDetail('subject', ${idx})">
       ${checkboxCell}
       <td style="color:var(--text-muted);">${displayNum}</td>
-      <td>${o.name}${sentTo?` <span class="tag-mini">отправлено в ${sentTo}</span>`:''}${excluded?' <span class="tag-mini">исключён</span>':''}</td>
+      <td>${o.name}${sentTo?` <span class="tag-mini">отправлено в ${sentTo}</span>`:''}${(!sentTo && sentToRegion[o.name])?` <span class="tag-mini">в ДВГА: ${sentToRegion[o.name]}</span>`:''}${excluded?' <span class="tag-mini">исключён</span>':''}</td>
       <td style="color:var(--text-2);">${o.kind}</td>
       <td style="color:var(--text-2);">${o.year}</td>
       <td style="color:var(--text-2);">${o.crit.length}</td>
@@ -5139,8 +5173,13 @@ function updateSelectionBar(){
   bar.style.display = 'flex';
   document.getElementById('selection-count').textContent = selectedIndices.size;
   const btn = document.getElementById('selection-action-btn');
-  btn.innerHTML = `<i class="ti ti-clipboard-list"></i>Сформировать перечень`;
-  btn.onclick = openSemiAnnualForm;
+  if(currentContour === 'b'){
+    btn.innerHTML = `<i class="ti ti-send"></i>Отправить в ДВГА по регионам`;
+    btn.onclick = dispatchSelectedToDvga;
+  } else {
+    btn.innerHTML = `<i class="ti ti-clipboard-list"></i>Сформировать перечень`;
+    btn.onclick = openSemiAnnualForm;
+  }
 }
 let perechenDraftObjects = []; // временный список объектов текущей отрываемой формы перечня
 
@@ -6069,7 +6108,7 @@ function renderSaStep4(){
     </div>
     <div class="actions" style="justify-content:flex-end;margin-top:14px;">
       <button class="btn" onclick="exportSaPreview()"><i class="ti ti-file-spreadsheet"></i>Печатная форма Excel</button>
-      <button class="btn" onclick="confirmSemiAnnual(true)">${currentContour==='b' ? 'Сформировать и отправить в ДВГА' : 'Согласовать'}</button>
+      <button class="btn" onclick="confirmSemiAnnual(true)">Согласовать</button>
       <button class="btn btn-primary" id="sa-confirm-btn" onclick="confirmSemiAnnual(false)"><i class="ti ti-check"></i>Сформировать</button>
     </div>`;
 }
@@ -6097,7 +6136,6 @@ function saSnapshotObject(o){
 function confirmSemiAnnual(alsoCoordinate){
   const selected = saWizard.candidates.filter(o => saWizard.candidateSel[currentData.indexOf(o)]);
   const contour = currentContour;
-  const isB = contour === 'b';
   const name = saWizard.periodLabel;
   const list = { name, period: saWizard.periodLabel, year: String(CURRENT_YEAR), count: selected.length, status: 'draft', contour,
     packageId: saWizard.packageId,
@@ -6108,14 +6146,10 @@ function confirmSemiAnnual(alsoCoordinate){
   const el = document.getElementById('sa-success');
   el.style.display = 'block';
   if(alsoCoordinate){
-    list.status = isB ? 'regional_review' : 'coordination';
-    el.innerHTML = isB
-      ? `<strong>${perechenArtifactLabel()} «${list.name}» сформирован и сразу отправлен на рассмотрение в территориальные ДВГА.</strong> Объектов: ${selected.length}, регионов: ${Object.keys(list.regionResponsible).length}.`
-      : `<strong>${perechenArtifactLabel()} «${list.name}» сформирован и сразу отправлен на согласование.</strong> Объектов: ${selected.length}, регионов: ${Object.keys(list.regionResponsible).length}.`;
+    list.status = 'coordination';
+    el.innerHTML = `<strong>${perechenArtifactLabel()} «${list.name}» сформирован и сразу отправлен на согласование.</strong> Объектов: ${selected.length}, регионов: ${Object.keys(list.regionResponsible).length}.`;
   } else {
-    el.innerHTML = isB
-      ? `<strong>${perechenArtifactLabel()} «${list.name}» сформирован как проект.</strong> Объектов: ${selected.length}, регионов: ${Object.keys(list.regionResponsible).length}. Готов к отправке на рассмотрение в территориальные ДВГА.`
-      : `<strong>${perechenArtifactLabel()} «${list.name}» сформирован как проект.</strong> Объектов: ${selected.length}, регионов: ${Object.keys(list.regionResponsible).length}. Готов к отправке на согласование.`;
+    el.innerHTML = `<strong>${perechenArtifactLabel()} «${list.name}» сформирован как проект.</strong> Объектов: ${selected.length}, регионов: ${Object.keys(list.regionResponsible).length}. Готов к отправке на согласование.`;
   }
   saWizard = newSaWizard();
   goToSaStep(1);
@@ -6144,16 +6178,6 @@ function sendForApproval(i){
   renderSemiAnnualLists();
   renderPerechenDraft();
 }
-function sendForRegionalReview(i){
-  semiAnnualLists[i].status = 'regional_review';
-  renderSemiAnnualLists();
-  renderPerechenDraft();
-}
-function returnFromRegionalReview(i){
-  semiAnnualLists[i].status = 'coordination';
-  renderSemiAnnualLists();
-  renderPerechenDraft();
-}
 function finalizeApproval(i){
   const l = semiAnnualLists[i];
   l.status = 'approved';
@@ -6170,6 +6194,218 @@ function finalizeApproval(i){
 }
 function perechenArtifactLabelFor(contour){
   return contour === 'b' ? 'Годовой список' : 'Перечень объектов';
+}
+
+/* ---------- рассмотрение результатов СУР территориальными ДВГА по регионам ---------- */
+function demoTodayStr(){
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${CURRENT_YEAR}`;
+}
+function dispatchSelectedToDvga(){
+  const selected = [...selectedIndices].map(idx => currentData[idx]);
+  if(!selected.length) return;
+  const byRegion = {};
+  selected.forEach(o => {
+    const region = o.region || deriveRegion(o.name);
+    (byRegion[region] = byRegion[region] || []).push(o);
+  });
+  const dateStr = demoTodayStr();
+  const regions = Object.keys(byRegion).sort((a,b)=>a.localeCompare(b,'ru'));
+  regions.forEach(region=>{
+    const objs = byRegion[region];
+    objs.forEach(o => { sentToRegion[o.name] = region; });
+    regionalBatches.push({
+      region, year: String(CURRENT_YEAR), contour: 'b',
+      sentDate: dateStr, returnedDate: null, status: 'review', merged: false,
+      objects: objs.map(o => ({...saSnapshotObject(o), kept: true}))
+    });
+  });
+  selectedIndices.clear();
+  renderTable(); renderCards(); updateSelectionBar();
+  const note = document.getElementById('send-module-note');
+  if(note){
+    note.style.display = 'block';
+    note.innerHTML = `<strong>Направлено на рассмотрение в территориальные ДВГА.</strong> ${selected.length} ${selected.length===1?'объект распределён':'объект(ов) распределено'} по ${regions.length} ${regions.length===1?'региону':'регионам'} (${regions.join(', ')}). Ход рассмотрения — во вкладке «Рассмотрение в ДВГА».`;
+  }
+}
+function openDvgaMain(){
+  showScreen('list');
+  clearAllNav();
+  hideAllScreenListViews();
+  document.getElementById('view-dvga-main').style.display = 'block';
+  document.getElementById('nav-dvga').classList.add('active');
+  renderDvgaMain();
+  window.scrollTo(0,0);
+}
+function renderDvgaMain(){
+  setDvgaTab(dvgaTab);
+}
+function setDvgaTab(tab){
+  dvgaTab = tab;
+  document.getElementById('dtab-active').classList.toggle('active', tab==='active');
+  document.getElementById('dtab-returned').classList.toggle('active', tab==='returned');
+  document.getElementById('dvga-active-content').style.display = tab==='active' ? 'block' : 'none';
+  document.getElementById('dvga-returned-content').style.display = tab==='returned' ? 'block' : 'none';
+  if(tab==='active') renderDvgaActive(); else renderDvgaReturned();
+}
+function dvgaBatchStatusBadge(status){
+  const map = {
+    review: '<span class="badge mid">На рассмотрении</span>',
+    coordination: '<span class="badge mid">На согласовании в ДВГА</span>',
+    signing: '<span class="badge mid">На подписании в ДВГА</span>',
+    returned: '<span class="badge sent">Возвращено в КВГА</span>',
+  };
+  return map[status] || status;
+}
+function dvgaBatchActionButton(b, i){
+  if(b.status === 'review') return `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="advanceDvgaBatch(${i})"><i class="ti ti-send"></i>На согласование</button>`;
+  if(b.status === 'coordination') return `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="advanceDvgaBatch(${i})"><i class="ti ti-send"></i>На подписание</button>`;
+  if(b.status === 'signing') return `<button class="btn btn-primary" style="height:28px;padding:0 10px;font-size:12px;" onclick="advanceDvgaBatch(${i})"><i class="ti ti-check"></i>Подписать и направить в КВГА</button>`;
+  return '';
+}
+function renderDvgaActive(){
+  const el = document.getElementById('dvga-active-content');
+  const rows = regionalBatches.map((b,i)=>({b,i})).filter(x=>x.b.contour===currentContour && x.b.status!=='returned');
+  el.innerHTML = `
+    <div class="card" style="overflow-x:auto;"><table>
+      <thead><tr><th>Регион</th><th style="width:90px;">Год</th><th style="width:120px;">Направлено</th><th style="width:100px;">Объектов</th><th style="width:210px;">Статус</th><th style="width:220px;"></th></tr></thead>
+      <tbody>${rows.length ? rows.map(({b,i})=>`
+        <tr class="row" onclick="openDvgaBatchDetail(${i})">
+          <td><strong>${b.region}</strong></td>
+          <td style="color:var(--text-2);">${b.year}</td>
+          <td style="color:var(--text-2);">${b.sentDate}</td>
+          <td>${b.objects.length}</td>
+          <td>${dvgaBatchStatusBadge(b.status)}</td>
+          <td onclick="event.stopPropagation()">${dvgaBatchActionButton(b, i)}</td>
+        </tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Нет объектов, направленных на рассмотрение. Отметьте объекты на вкладке «Проверка» и отправьте их в ДВГА по регионам.</td></tr>`}
+      </tbody>
+    </table></div>`;
+}
+function unmergedReturnedBatches(){
+  return regionalBatches.map((b,i)=>({b,i})).filter(x=>x.b.contour===currentContour && x.b.status==='returned' && !x.b.merged);
+}
+function renderDvgaReturned(){
+  const el = document.getElementById('dvga-returned-content');
+  const rows = regionalBatches.map((b,i)=>({b,i})).filter(x=>x.b.contour===currentContour && x.b.status==='returned');
+  const pending = unmergedReturnedBatches().length;
+  el.innerHTML = `
+    <div class="topbar" style="margin-bottom:8px;">
+      <div class="section-title" style="margin:0;">Возвращённые из ДВГА (${rows.length})</div>
+      ${pending ? `<button class="btn btn-primary" onclick="mergeReturnedIntoDraft()"><i class="ti ti-folder-plus"></i>Сформировать проект перечня (${pending})</button>` : ''}
+    </div>
+    <div class="card" style="overflow-x:auto;"><table>
+      <thead><tr><th>Регион</th><th style="width:90px;">Год</th><th style="width:120px;">Возвращено</th><th style="width:110px;">Направлено</th><th style="width:100px;">Оставлено</th><th style="width:210px;">Статус</th></tr></thead>
+      <tbody>${rows.length ? rows.map(({b,i})=>{
+        const kept = b.objects.filter(o=>o.kept).length;
+        return `<tr class="row" onclick="openDvgaBatchDetail(${i})">
+          <td><strong>${b.region}</strong></td>
+          <td style="color:var(--text-2);">${b.year}</td>
+          <td style="color:var(--text-2);">${b.returnedDate||'—'}</td>
+          <td>${b.objects.length}</td>
+          <td>${kept}</td>
+          <td>${b.merged ? '<span class="badge sent">Учтено в проекте перечня</span>' : '<span class="badge mid">Ожидает объединения</span>'}</td>
+        </tr>`;
+      }).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Пока нет возвращённых из ДВГА результатов</td></tr>`}
+      </tbody>
+    </table></div>`;
+}
+function advanceDvgaBatch(i){
+  const b = regionalBatches[i];
+  if(!b) return;
+  if(b.status === 'review') b.status = 'coordination';
+  else if(b.status === 'coordination') b.status = 'signing';
+  else if(b.status === 'signing'){
+    b.status = 'returned';
+    b.returnedDate = demoTodayStr();
+  }
+  renderDvgaMain();
+  if(document.getElementById('view-dvga-detail').style.display === 'block') renderDvgaBatchDetail();
+}
+function openDvgaBatchDetail(i){
+  currentDvgaBatch = i;
+  clearAllNav();
+  hideAllScreenListViews();
+  document.getElementById('view-dvga-detail').style.display = 'block';
+  document.getElementById('nav-dvga').classList.add('active');
+  renderDvgaBatchDetail();
+  window.scrollTo(0,0);
+}
+function closeDvgaBatchDetail(){
+  openDvgaMain();
+}
+function toggleDvgaDecision(objIdx, checked){
+  regionalBatches[currentDvgaBatch].objects[objIdx].kept = checked;
+  renderDvgaBatchDetail();
+}
+function renderDvgaBatchDetail(){
+  const b = regionalBatches[currentDvgaBatch];
+  if(!b) return;
+  document.getElementById('dvga-detail-title').textContent = `ДВГА по региону: ${b.region}`;
+  const statusText = {review:'На рассмотрении', coordination:'На согласовании в ДВГА', signing:'На подписании в ДВГА', returned:'Возвращено в КВГА'}[b.status] || b.status;
+  const statusCls = {review:'mid', coordination:'mid', signing:'mid', returned:'sent'}[b.status] || 'low';
+  const statusEl = document.getElementById('dvga-detail-status');
+  statusEl.textContent = statusText;
+  statusEl.className = 'badge ' + statusCls;
+  const keptCount = b.objects.filter(o=>o.kept).length;
+  document.getElementById('dvga-detail-meta').innerHTML =
+    `${b.year} год · Направлено: ${b.sentDate} · Объектов направлено: ${b.objects.length} · Оставлено к проверке: ${keptCount}${b.returnedDate ? ` · Возвращено в КВГА: ${b.returnedDate}` : ''}`;
+  const editable = b.status === 'review';
+  const labelFn = currentContour === 'b' ? riskLabelB : riskLabelA;
+  const rows = b.objects.map((o,oi)=>`
+    <tr style="${o.kept?'':'opacity:.5;'}">
+      <td style="color:var(--text-muted);">${oi+1}</td>
+      <td><strong>${o.name}</strong></td>
+      <td class="mono" style="font-size:12px;">${o.bin||'—'}</td>
+      <td>${o.category||o.kind||'—'}</td>
+      <td><span class="badge ${o.risk}">${labelFn[o.risk]||o.risk}</span></td>
+      <td style="text-align:center;">${editable
+        ? `<input type="checkbox" ${o.kept?'checked':''} onchange="toggleDvgaDecision(${oi}, this.checked)">`
+        : (o.kept ? '<span class="badge sent">Оставлен</span>' : '<span class="badge low">Исключён</span>')}</td>
+    </tr>`).join('');
+  document.getElementById('dvga-detail-objects').innerHTML = `
+    <div class="card" style="overflow-x:auto;margin-bottom:0;">
+      <table>
+        <thead><tr><th style="width:34px;">№</th><th>Наименование объекта</th><th style="width:140px;">БИН</th><th style="width:200px;">Категория</th><th style="width:160px;">Уровень риска</th><th style="width:150px;">${editable?'Включить в проверку':'Решение ДВГА'}</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Нет данных об объектах</td></tr>`}</tbody>
+      </table>
+    </div>`;
+  let actionsHtml = '';
+  if(b.status === 'review') actionsHtml = `<button class="btn btn-primary" onclick="advanceDvgaBatch(${currentDvgaBatch})"><i class="ti ti-send"></i>Отправить на согласование (оставлено: ${keptCount})</button>`;
+  else if(b.status === 'coordination') actionsHtml = `<button class="btn btn-primary" onclick="advanceDvgaBatch(${currentDvgaBatch})"><i class="ti ti-send"></i>На подписание</button>`;
+  else if(b.status === 'signing') actionsHtml = `<button class="btn btn-primary" onclick="advanceDvgaBatch(${currentDvgaBatch})"><i class="ti ti-check"></i>Подписать и направить в КВГА</button>`;
+  else if(b.status === 'returned') actionsHtml = b.merged ? `<span class="badge sent">Учтено в проекте перечня</span>` : `<span class="badge mid">Ожидает объединения в проект перечня</span>`;
+  document.getElementById('dvga-detail-actions').innerHTML = actionsHtml;
+}
+function mergeReturnedIntoDraft(){
+  const pending = unmergedReturnedBatches();
+  if(!pending.length) return;
+  const keptObjects = [];
+  pending.forEach(({b})=>{
+    b.objects.filter(o=>o.kept).forEach(o=>{ const {kept, ...clean} = o; keptObjects.push(clean); });
+    b.merged = true;
+  });
+  const list = {
+    name: `Проект перечня — ${CURRENT_YEAR}`,
+    period: `${CURRENT_YEAR} год`,
+    year: String(CURRENT_YEAR),
+    count: keptObjects.length,
+    status: 'draft',
+    contour: 'b',
+    packageId: `SUR_DVGA_${CURRENT_YEAR}_MERGE_${semiAnnualLists.length+1}`,
+    regionResponsible: {},
+    objects: keptObjects,
+  };
+  semiAnnualLists.push(list);
+  keptObjects.forEach(o => { listByObject[o.name] = list.name; });
+  renderDvgaReturned();
+  renderSemiAnnualLists();
+  const el = document.getElementById('sa-success');
+  if(el){
+    el.style.display = 'block';
+    el.innerHTML = `<strong>${perechenArtifactLabel()} «${list.name}» сформирован из отфильтрованных результатов ${pending.length} ${pending.length===1?'региона':'регионов'}.</strong> Объектов: ${keptObjects.length}. Готов к отправке на согласование.`;
+  }
+  openPerechenMain();
+  setPerechenTab('draft');
 }
 
 /* ---------- просмотр и редактирование состава сформированного мероприятия / списка ---------- */
@@ -6199,8 +6435,8 @@ function renderGroupDetailBody(){
   const item = semiAnnualLists[index];
   document.getElementById('gd-title').textContent = item.name;
   const gdIsB = item.contour === 'b';
-  const statusTextMap = {draft:'Проект', regional_review:'На рассмотрении в ДВГА', coordination:'На согласовании', approval: gdIsB ? 'На утверждении Председателем КВГА' : 'На утверждении', approved: gdIsB ? 'Утверждён Председателем КВГА' : 'Утверждён'};
-  const statusClassMap = {draft:'low', regional_review:'mid', coordination:'mid', approval:'mid', approved:'sent'};
+  const statusTextMap = {draft:'Проект', coordination:'На согласовании', approval: gdIsB ? 'На утверждении Председателем КВГА' : 'На утверждении', approved: gdIsB ? 'Утверждён Председателем КВГА' : 'Утверждён'};
+  const statusClassMap = {draft:'low', coordination:'mid', approval:'mid', approved:'sent'};
   document.getElementById('gd-status').textContent = statusTextMap[item.status] || item.status;
   document.getElementById('gd-status').className = 'badge ' + (statusClassMap[item.status] || 'low');
   const periodTxt = item.contour === 'b' ? `${item.year} год` : `${item.period} ${item.year} года`;
@@ -6672,6 +6908,13 @@ function populateRegionFilterChk(){
   const sel = document.getElementById('chk-f-region');
   const allRegions = OBLAST_PATTERNS.map(p=>p[0]).sort((a,b)=>a.localeCompare(b,'ru'));
   sel.innerHTML = '<option value="">Все</option>'
+    + allRegions.map(r=>`<option>${r}</option>`).join('');
+}
+function populateMainRegionFilter(){
+  const sel = document.getElementById('f-region');
+  if(!sel || sel.options.length) return;
+  const allRegions = OBLAST_PATTERNS.map(p=>p[0]).sort((a,b)=>a.localeCompare(b,'ru'));
+  sel.innerHTML = '<option value="">Все регионы</option>'
     + allRegions.map(r=>`<option>${r}</option>`).join('');
 }
 /* Поля фильтров всегда остаются в раскладке (visibility), чтобы сетка не "прыгала"
