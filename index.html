@@ -6281,12 +6281,157 @@ function exportSemiAnnualList(i){
     alert('В составе нет объектов — экспортировать нечего.');
     return;
   }
+  if(l.contour === 'b' && l.status === 'approved'){
+    // утверждённый годовой список (ЭВГА) выгружается по форме официального перечня, см. exportApprovedPerechenOfficial()
+    exportApprovedPerechenOfficial(l);
+    return;
+  }
   const labelFn = l.contour === 'b' ? riskLabelB : riskLabelA;
   const header = ['№','Наименование субъекта','БИН','Регион','Место регистрации','КО','Дата регистрации','Дата последнего контроля','Вид деятельности','Уровень риска','Основание включения'];
   const rows = l.objects.map((o,oi)=>[oi+1, o.name, o.bin||'', o.region||'', '', o.koLabel||saKoLabel(o)||'', o.regDate||'', o.lastAuditDate||'', o.category||o.kind||'', labelFn[o.risk]||o.risk||'', (o.basis||'').replace(/<[^>]+>/g,'')]);
   const statusSlug = {draft:'proekt', coordination:'na_soglasovanii', approval:'na_utverzhdenii', approved:'utverzhden'}[l.status] || l.status;
   const safeName = l.name.replace(/[«»]/g,'').replace(/\s+/g,'_');
   downloadCSV(`${statusSlug}_${safeName}.csv`, [header, ...rows]);
+}
+
+/* ---------- официальный формат выгрузки утверждённого годового перечня (контур Б / ЭВГА) ----------
+   Структура и заголовки воспроизводят приложение к приказу председателя КВГА — "Перечень объектов
+   государственного аудита ведомства уполномоченного органа по внутреннему государственному аудиту
+   и его территориальных подразделений на ... год": группировка по территориальным ДВГА, внутри —
+   по аудиторским мероприятиям (с объединёнными ячейками на срок мероприятия), с промежуточными
+   итогами по мероприятию и общим итогом по ДВГА, по 4 годам финансирования (3 года + истекший период). */
+const REGION_DATIVE = {
+  'Акмолинская область':'Акмолинской области', 'Актюбинская область':'Актюбинской области',
+  'Алматинская область':'Алматинской области', 'Атырауская область':'Атырауской области',
+  'Восточно-Казахстанская область':'Восточно-Казахстанской области', 'Жамбылская область':'Жамбылской области',
+  'Западно-Казахстанская область':'Западно-Казахстанской области', 'Карагандинская область':'Карагандинской области',
+  'Костанайская область':'Костанайской области', 'Кызылординская область':'Кызылординской области',
+  'Мангистауская область':'Мангистауской области', 'Павлодарская область':'Павлодарской области',
+  'Северо-Казахстанская область':'Северо-Казахстанской области', 'Туркестанская область':'Туркестанской области',
+  'область Абай':'области Абай', 'область Жетісу':'области Жетісу', 'область Ұлытау':'области Ұлытау',
+  'г. Астана':'городу Астана', 'г. Алматы':'городу Алматы', 'г. Шымкент':'городу Шымкент',
+};
+function saObjRegion(o){
+  return (o.region && o.region !== 'Регион не указан') ? o.region : deriveRegion(o.name);
+}
+function regionDative(region){ return REGION_DATIVE[region] || region; }
+function departmentNameForRegion(region){ return `Департамент внутреннего государственного аудита по ${regionDative(region)}`; }
+const OFFICIAL_AUDIT_QUARTERS = ['1 квартал','2 квартал','3 квартал','4 квартал'];
+function isFinReportAudit(auditType){ return /финансов\S*\s+отч/i.test(auditType||''); }
+function officialEngagementName(region, auditType){
+  return isFinReportAudit(auditType)
+    ? 'Государственный аудит финансовой отчётности администраторов бюджетных программ'
+    : `Государственный аудит соответствия планирования, использования бюджетных средств и активов государства по ${regionDative(region)}`;
+}
+function officialEngagementPeriod(auditType, name){
+  if(isFinReportAudit(auditType)) return `2 квартал ${CURRENT_YEAR} года - 1 квартал ${CURRENT_YEAR+1} года`;
+  return OFFICIAL_AUDIT_QUARTERS[seedFromName(name) % 4];
+}
+function parseRuAmount(str){
+  if(!str) return 0;
+  const n = parseFloat(String(str).replace(/\s/g,'').replace(',', '.'));
+  return isNaN(n) ? 0 : n;
+}
+function fmtRuAmount(n){
+  if(!n) return '';
+  const parts = (Math.round(n*10)/10).toFixed(1).split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return parts.join(',');
+}
+function officialAmountForYear(o, year){
+  const entry = (o.financing||[]).find(f=>String(f.year)===String(year));
+  return entry ? entry.amount : '';
+}
+function exportApprovedPerechenOfficial(l){
+  const Y = Number(l.year) || CURRENT_YEAR;
+  const years = [Y-3, Y-2, Y-1];
+  const header1 = ['№ п/п','Наименование объекта государственного аудита','Тип аудита','Вид аудита',
+    'Наименование аудиторского мероприятия','Срок проведения аудита',
+    `${years[0]} год`, `${years[1]} год`, `${years[2]} год`, `за истекший период ${Y} года`, 'Всего'];
+  const header2 = ['1','2','3','4','5','6','7','8','9','10','11'];
+
+  const rows = [
+    ['Приложение к приказу председателя'],
+    ['Комитета внутреннего государственного аудита'],
+    ['Министерства финансов Республики Казахстан'],
+    ['«___» __________ ____ г. № ___'],
+    [],
+    ['Перечень объектов государственного аудита'],
+    ['ведомства уполномоченного органа по внутреннему государственному аудиту'],
+    [`и его территориальных подразделений на ${Y} год`],
+    [],
+    header1,
+    header2,
+  ];
+  const merges = [];
+  for(let r=5;r<=7;r++) merges.push({s:{r,c:0}, e:{r,c:10}});
+
+  const byRegion = {};
+  const regionOrder = [];
+  l.objects.forEach(o=>{
+    const region = saObjRegion(o);
+    if(!byRegion[region]){ byRegion[region] = []; regionOrder.push(region); }
+    byRegion[region].push(o);
+  });
+  regionOrder.sort((a,b)=>a.localeCompare(b,'ru'));
+
+  regionOrder.forEach(region=>{
+    const deptRowIdx = rows.length;
+    rows.push([departmentNameForRegion(region)]);
+    merges.push({s:{r:deptRowIdx,c:0}, e:{r:deptRowIdx,c:10}});
+
+    const groups = {};
+    const groupOrder = [];
+    byRegion[region].forEach(o=>{
+      const auditType = (o.auditType || 'Аудит соответствия');
+      const period = officialEngagementPeriod(auditType, o.name);
+      const key = auditType + '|' + period;
+      if(!groups[key]){ groups[key] = { auditType, period, name: officialEngagementName(region, auditType), objects: [] }; groupOrder.push(key); }
+      groups[key].objects.push(o);
+    });
+    groupOrder.sort((ka,kb)=>{
+      const ga = groups[ka], gb = groups[kb];
+      const fa = isFinReportAudit(ga.auditType), fb = isFinReportAudit(gb.auditType);
+      if(fa !== fb) return fa ? 1 : -1;
+      return ga.period.localeCompare(gb.period,'ru');
+    });
+
+    let n = 1;
+    const deptTotal = [0,0,0,0,0];
+    groupOrder.forEach(key=>{
+      const g = groups[key];
+      const groupStartRow = rows.length;
+      const engTotal = [0,0,0,0,0];
+      g.objects.forEach(o=>{
+        const vals = years.concat([Y]).map(y=>officialAmountForYear(o, y));
+        const nums = vals.map(parseRuAmount);
+        const total = nums.reduce((a,b)=>a+b,0);
+        rows.push([n++, o.name, (g.auditType||'').toLowerCase(), 'внутренний государственный аудит',
+          g.name, g.period, vals[0], vals[1], vals[2], vals[3], total ? fmtRuAmount(total) : '']);
+        for(let vi=0; vi<4; vi++) engTotal[vi]+=nums[vi];
+        engTotal[4] += total;
+      });
+      const groupEndRow = rows.length - 1;
+      if(groupEndRow > groupStartRow){
+        [2,3,4,5].forEach(c=> merges.push({s:{r:groupStartRow,c}, e:{r:groupEndRow,c}}));
+      }
+      rows.push(['','Всего по аудиторскому мероприятию:','','','','',
+        fmtRuAmount(engTotal[0]), fmtRuAmount(engTotal[1]), fmtRuAmount(engTotal[2]), fmtRuAmount(engTotal[3]), fmtRuAmount(engTotal[4])]);
+      merges.push({s:{r:rows.length-1,c:1}, e:{r:rows.length-1,c:5}});
+      for(let vi=0; vi<5; vi++) deptTotal[vi]+=engTotal[vi];
+    });
+    rows.push(['','Всего по ДВГА:','','','','',
+      fmtRuAmount(deptTotal[0]), fmtRuAmount(deptTotal[1]), fmtRuAmount(deptTotal[2]), fmtRuAmount(deptTotal[3]), fmtRuAmount(deptTotal[4])]);
+    merges.push({s:{r:rows.length-1,c:1}, e:{r:rows.length-1,c:5}});
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!merges'] = merges;
+  ws['!cols'] = [{wch:5},{wch:46},{wch:15},{wch:15},{wch:46},{wch:14},{wch:11},{wch:11},{wch:11},{wch:13},{wch:13}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `Перечень ${Y}`.slice(0,31));
+  const safeName = (l.name||'perechen').replace(/[«»"]/g,'').replace(/\s+/g,'_');
+  XLSX.writeFile(wb, `perechen_obektov_gosaudita_${Y}_${safeName}.xlsx`);
 }
 
 /* ---------- рассмотрение результатов СУР территориальными ДВГА по регионам ---------- */
