@@ -466,12 +466,31 @@
           <span class="pill">Планирование аудита</span>
         </div>
         <p style="color:var(--text-2);font-size:13px;margin-bottom:16px;">Результаты СУР, направленные по регионам объектов на рассмотрение в территориальные департаменты (ДВГА), — до объединения отфильтрованных результатов в проект перечня.</p>
+        <div class="note" id="dvga-dispatch-note" style="display:none;"></div>
         <div class="segmented" style="margin-bottom:16px;">
+          <button id="dtab-draft" onclick="setDvgaTab('draft')">Черновики</button>
           <button class="active" id="dtab-active" onclick="setDvgaTab('active')">На рассмотрении</button>
           <button id="dtab-returned" onclick="setDvgaTab('returned')">Возвращённые в КВГА</button>
         </div>
+        <div id="dvga-draft-content" style="display:none;"></div>
         <div id="dvga-active-content"></div>
         <div id="dvga-returned-content" style="display:none;"></div>
+      </div>
+
+      <div id="view-sur-draft-detail" style="display:none;">
+        <a class="back-link" onclick="closeSurDraftDetail()"><i class="ti ti-arrow-left"></i>Назад</a>
+        <div class="topbar">
+          <h1 id="sd-title">—</h1>
+          <span class="badge low" id="sd-status">—</span>
+        </div>
+        <div id="sd-meta" style="color:var(--text-2);font-size:13px;margin-bottom:16px;"></div>
+        <div class="note" id="sd-success" style="display:none;"></div>
+        <div class="actions" style="margin-bottom:12px;">
+          <button class="btn" id="sd-edit-btn" onclick="toggleSurDraftEdit()"><i class="ti ti-edit"></i>Редактировать состав</button>
+          <button class="btn" onclick="exportSurDraft(currentSurDraft)"><i class="ti ti-file-spreadsheet"></i>Выгрузить состав (Excel)</button>
+        </div>
+        <div id="sd-objects"></div>
+        <div class="actions" style="margin-top:16px;" id="sd-actions"></div>
       </div>
 
       <div id="view-dvga-detail" style="display:none;">
@@ -3991,7 +4010,12 @@ let sentToModule = {}; // o.name -> 'ЭВГА' | 'Проф. контроль' �
 let regionalBatches = []; // {region, year, contour, sentDate, returnedDate, status:'review'|'coordination'|'signing'|'returned', merged, objects:[{...снимок, kept}]} — рассмотрение результатов СУР территориальными ДВГА по регионам
 let sentToRegion = {}; // o.name -> регион, куда объект направлен на рассмотрение в ДВГА
 let currentDvgaBatch = null; // индекс просматриваемой пачки в разделе «Рассмотрение в ДВГА»
-let dvgaTab = 'active'; // 'active' | 'returned' — активная вкладка раздела «Рассмотрение в ДВГА»
+let dvgaTab = 'active'; // 'draft' | 'active' | 'returned' — активная вкладка раздела «Рассмотрение в ДВГА»
+let surDispatchDrafts = []; // {name, year, contour, status:'draft'|'sent', createdDate, sentDate, objects:[снимок,...]} — проект отбора результатов
+  // СУР ПЕРЕД отправкой в территориальные ДВГА: сотрудник КВГА отмечает объекты, формирует проект (можно
+  // проверить состав и убрать лишние объекты), и только отдельным действием фактически направляет его —
+  // раньше отметка галочками сразу же становилась отправкой, без возможности проверить и передумать.
+let draftedTo = {}; // o.name -> имя проекта (surDispatchDrafts), пока объект в несформированном проекте и не убран из него
 let dvgaExpandedRow = null; // индекс развёрнутой строки объекта в карточке пачки ДВГА (полная информация по объекту)
 let dvgaExpandedCrit = null; // индекс развёрнутого (до источника) критерия внутри развёрнутой строки объекта ДВГА
 let formedPerechni = []; // {number, date, period, objects:[...], byRegion:{region:[obj,...]}} — сформированные и утверждённые перечни (направление «Планирование аудита»)
@@ -4022,7 +4046,7 @@ const ALL_NAV_IDS = ['nav-check','nav-dvga','nav-perechen','nav-criteria','nav-h
 function clearAllNav(){
   ALL_NAV_IDS.forEach(id=>{ const el = document.getElementById(id); if(el) el.classList.remove('active'); });
 }
-const ALL_SCREEN_LIST_VIEWS = ['view-list','view-detail','view-perechen-main','view-dvga-main','view-dvga-detail','view-engagement','view-semiannual','view-final','view-group-detail'];
+const ALL_SCREEN_LIST_VIEWS = ['view-list','view-detail','view-perechen-main','view-dvga-main','view-dvga-detail','view-sur-draft-detail','view-engagement','view-semiannual','view-final','view-group-detail'];
 function hideAllScreenListViews(){
   ALL_SCREEN_LIST_VIEWS.forEach(id=>{ const el = document.getElementById(id); if(el) el.style.display = 'none'; });
 }
@@ -5162,7 +5186,7 @@ function renderTable(){
     <tr class="row" style="${excluded?'opacity:.5;':''}" onclick="openDetail('subject', ${idx})">
       ${checkboxCell}
       <td style="color:var(--text-muted);">${displayNum}</td>
-      <td>${o.name}${sentTo?` <span class="tag-mini">отправлено в ${sentTo}</span>`:''}${(!sentTo && sentToRegion[o.name])?` <span class="tag-mini">в ДВГА: ${sentToRegion[o.name]}</span>`:''}${excluded?' <span class="tag-mini">исключён</span>':''}</td>
+      <td>${o.name}${sentTo?` <span class="tag-mini">отправлено в ${sentTo}</span>`:''}${(!sentTo && sentToRegion[o.name])?` <span class="tag-mini">в ДВГА: ${sentToRegion[o.name]}</span>`:''}${(!sentTo && !sentToRegion[o.name] && draftedTo[o.name])?` <span class="tag-mini">в проекте: ${draftedTo[o.name]}</span>`:''}${excluded?' <span class="tag-mini">исключён</span>':''}</td>
       ${currentContour==='b' ? `<td style="color:var(--text-2);">${o.region || deriveRegion(o.name)}</td>` : ''}
       <td style="color:var(--text-2);">${o.kind}</td>
       <td style="color:var(--text-2);">${o.year}</td>
@@ -5205,8 +5229,8 @@ function updateSelectionBar(){
   document.getElementById('selection-count').textContent = selectedIndices.size;
   const btn = document.getElementById('selection-action-btn');
   if(currentContour === 'b'){
-    btn.innerHTML = `<i class="ti ti-send"></i>Отправить в ДВГА по регионам`;
-    btn.onclick = dispatchSelectedToDvga;
+    btn.innerHTML = `<i class="ti ti-clipboard-list"></i>Сформировать проект`;
+    btn.onclick = createSurDraftFromSelection;
   } else {
     btn.innerHTML = `<i class="ti ti-clipboard-list"></i>Сформировать перечень`;
     btn.onclick = openSemiAnnualForm;
@@ -6547,7 +6571,7 @@ function objTableHead(showX){
     <th style="width:220px;">Основание включения</th>${showX ? '<th style="width:40px;"></th>' : ''}
   </tr></thead>`;
 }
-function objTableRow(o, oi, labelFn, showX){
+function objTableRow(o, oi, labelFn, showX, removeFn){
   return `<tr>
     <td style="color:var(--text-muted);">${oi+1}</td>
     <td><strong>${o.name}</strong></td>
@@ -6560,7 +6584,7 @@ function objTableRow(o, oi, labelFn, showX){
     <td>${o.category||o.kind||'—'}</td>
     <td><span class="badge ${o.risk}">${labelFn[o.risk]}</span></td>
     <td style="font-size:12px;">${o.basis||'—'}</td>
-    ${showX ? `<td><button class="btn" style="height:26px;padding:0 8px;font-size:11.5px;" onclick="removeFromGroup(${oi})" title="Убрать из состава"><i class="ti ti-x"></i></button></td>` : ''}
+    ${showX ? `<td><button class="btn" style="height:26px;padding:0 8px;font-size:11.5px;" onclick="${removeFn||'removeFromGroup'}(${oi})" title="Убрать из состава"><i class="ti ti-x"></i></button></td>` : ''}
   </tr>`;
 }
 function setEngOverride(key, field, value){
@@ -6576,32 +6600,167 @@ function demoTodayStr(){
   const d = new Date();
   return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${CURRENT_YEAR}`;
 }
-function dispatchSelectedToDvga(){
-  const selected = [...selectedIndices].map(idx => currentData[idx]);
+/* ---------- проект отбора результатов СУР перед отправкой в territориальные ДВГА ----------
+   Раньше отметка объектов галочками сразу становилась отправкой (dispatchSelectedToDvga, без
+   возможности проверить состав и передумать). Теперь галочки формируют ПРОЕКТ (surDispatchDrafts,
+   статус 'draft') — можно открыть его, проверить состав, убрать лишние объекты, и только отдельным
+   действием «Направить в ДВГА по регионам» (dispatchSurDraft) фактически разослать по регионам,
+   создавая regionalBatches — как раньше делал dispatchSelectedToDvga. */
+function createSurDraftFromSelection(){
+  const selected = [...selectedIndices].map(idx => currentData[idx]).filter(Boolean);
   if(!selected.length) return;
+  const dateStr = demoTodayStr();
+  const seq = surDispatchDrafts.filter(d=>d.contour===currentContour).length + 1;
+  const draft = {
+    name: `Проект №${seq} на рассмотрение в ДВГА — ${CURRENT_YEAR}`,
+    year: String(CURRENT_YEAR), contour: currentContour,
+    status: 'draft', createdDate: dateStr, sentDate: null,
+    objects: selected.map(saSnapshotObject),
+  };
+  surDispatchDrafts.push(draft);
+  selected.forEach(o => { draftedTo[o.name] = draft.name; });
+  selectedIndices.clear();
+  renderTable(); renderCards(); updateSelectionBar();
+  openDvgaMain();
+  setDvgaTab('draft');
+  openSurDraftDetail(surDispatchDrafts.length - 1);
+}
+function renderDvgaDrafts(){
+  const el = document.getElementById('dvga-draft-content');
+  const rows = surDispatchDrafts.map((d,i)=>({d,i})).filter(x=>x.d.contour===currentContour);
+  const openCount = rows.filter(x=>x.d.status==='draft').length;
+  el.innerHTML = `
+    <div class="topbar" style="margin-bottom:8px;">
+      <div class="section-title" style="margin:0;">Проекты на отправку в ДВГА (${rows.length})</div>
+    </div>
+    <p style="color:var(--text-2);font-size:12.5px;margin-bottom:12px;">${openCount ? `${openCount} ${openCount===1?'проект ещё не отправлен':'проект(ов) ещё не отправлены'} — можно проверить состав и убрать лишние объекты перед отправкой.` : 'Отметьте объекты на вкладке «Проверка» и нажмите «Сформировать проект», чтобы собрать их здесь перед отправкой в территориальные ДВГА.'}</p>
+    <div class="card" style="overflow-x:auto;"><table>
+      <thead><tr><th>Проект</th><th style="width:90px;">Год</th><th style="width:120px;">Сформирован</th><th style="width:100px;">Объектов</th><th style="width:100px;">Регионов</th><th style="width:190px;">Статус</th><th style="width:170px;"></th></tr></thead>
+      <tbody>${rows.length ? rows.map(({d,i})=>{
+        const regionCount = new Set(d.objects.map(o=>o.region||'Регион не указан')).size;
+        return `<tr class="row" onclick="openSurDraftDetail(${i})">
+          <td><strong>${d.name}</strong></td>
+          <td style="color:var(--text-2);">${d.year}</td>
+          <td style="color:var(--text-2);">${d.createdDate}</td>
+          <td>${d.objects.length}</td>
+          <td>${regionCount}</td>
+          <td>${surDraftStatusBadge(d.status)}</td>
+          <td onclick="event.stopPropagation()"><div style="display:flex;gap:6px;justify-content:flex-end;">
+            <button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="exportSurDraft(${i})" title="Выгрузить состав"><i class="ti ti-file-spreadsheet"></i>Excel</button>
+          </div></td>
+        </tr>`;
+      }).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px;">Пока нет сформированных проектов</td></tr>`}
+      </tbody>
+    </table></div>`;
+}
+function surDraftStatusBadge(status){
+  return status === 'sent' ? '<span class="badge sent">Направлен в ДВГА</span>' : '<span class="badge low">Проект</span>';
+}
+let currentSurDraft = null;
+let surDraftEditMode = false;
+function openSurDraftDetail(i){
+  currentSurDraft = i;
+  surDraftEditMode = false;
+  clearAllNav();
+  hideAllScreenListViews();
+  document.getElementById('view-sur-draft-detail').style.display = 'block';
+  document.getElementById('nav-dvga').classList.add('active');
+  document.getElementById('sd-success').style.display = 'none';
+  renderSurDraftDetail();
+  window.scrollTo(0,0);
+}
+function closeSurDraftDetail(){
+  openDvgaMain();
+  setDvgaTab('draft');
+}
+function renderSurDraftDetail(){
+  const d = surDispatchDrafts[currentSurDraft];
+  if(!d) return;
+  document.getElementById('sd-title').textContent = d.name;
+  document.getElementById('sd-status').textContent = d.status==='sent' ? 'Направлен в ДВГА' : 'Проект';
+  document.getElementById('sd-status').className = 'badge ' + (d.status==='sent' ? 'sent' : 'low');
+  const regionCount = new Set(d.objects.map(o=>o.region||'Регион не указан')).size;
+  document.getElementById('sd-meta').textContent =
+    `${d.year} год · Сформирован: ${d.createdDate}${d.sentDate ? ` · Направлен: ${d.sentDate}` : ''} · Объектов: ${d.objects.length} · Регионов: ${regionCount}`;
+
+  const editable = d.status === 'draft';
+  const editBtn = document.getElementById('sd-edit-btn');
+  editBtn.style.display = editable ? 'inline-flex' : 'none';
+  editBtn.innerHTML = surDraftEditMode ? '<i class="ti ti-check"></i>Готово' : '<i class="ti ti-edit"></i>Редактировать состав';
+
+  const labelFn = d.contour === 'b' ? riskLabelB : riskLabelA;
+  const showX = editable && surDraftEditMode;
+  const colCount = 11 + (showX ? 1 : 0);
+  const rowsHtml = d.objects.map((o,oi)=>objTableRow(o, oi, labelFn, showX, 'removeSurDraftObject')).join('');
+  document.getElementById('sd-objects').innerHTML = `
+    <div class="card" style="overflow-x:auto;margin-bottom:0;">
+      <table>
+        ${objTableHead(showX)}
+        <tbody>${rowsHtml || `<tr><td colspan="${colCount}" style="text-align:center;color:var(--text-muted);padding:20px;">Нет объектов в составе</td></tr>`}</tbody>
+      </table>
+    </div>`;
+
+  const actionsEl = document.getElementById('sd-actions');
+  actionsEl.innerHTML = editable
+    ? `<button class="btn btn-primary" onclick="dispatchSurDraft()" ${!d.objects.length?'disabled':''}><i class="ti ti-send"></i>Направить в ДВГА по регионам (${d.objects.length})</button>`
+    : `<span class="badge sent">Направлен в ДВГА · ${d.sentDate}</span>`;
+}
+function toggleSurDraftEdit(){
+  surDraftEditMode = !surDraftEditMode;
+  renderSurDraftDetail();
+}
+function removeSurDraftObject(oi){
+  const d = surDispatchDrafts[currentSurDraft];
+  if(!d) return;
+  if(d.objects.length <= 1 && !confirm('Это последний объект в составе. Убрать и оставить проект пустым?')) return;
+  const removed = d.objects.splice(oi,1)[0];
+  if(removed) delete draftedTo[removed.name];
+  renderSurDraftDetail();
+  renderDvgaDrafts();
+}
+function dispatchSurDraft(){
+  const d = surDispatchDrafts[currentSurDraft];
+  if(!d || d.status !== 'draft' || !d.objects.length) return;
   const byRegion = {};
-  selected.forEach(o => {
-    const region = o.region || deriveRegion(o.name);
+  d.objects.forEach(o => {
+    const region = saObjRegion(o);
     (byRegion[region] = byRegion[region] || []).push(o);
   });
   const dateStr = demoTodayStr();
   const regions = Object.keys(byRegion).sort((a,b)=>a.localeCompare(b,'ru'));
   regions.forEach(region=>{
     const objs = byRegion[region];
-    objs.forEach(o => { sentToRegion[o.name] = region; });
+    objs.forEach(o => { sentToRegion[o.name] = region; delete draftedTo[o.name]; });
     regionalBatches.push({
-      region, year: String(CURRENT_YEAR), contour: 'b',
+      region, year: d.year, contour: 'b',
       sentDate: dateStr, returnedDate: null, status: 'review', merged: false,
-      objects: objs.map(o => ({...saSnapshotObject(o), kept: true}))
+      objects: objs.map(o => ({...o, kept: true}))
     });
   });
-  selectedIndices.clear();
-  renderTable(); renderCards(); updateSelectionBar();
-  const note = document.getElementById('send-module-note');
+  d.status = 'sent';
+  d.sentDate = dateStr;
+  const count = d.objects.length;
+  openDvgaMain();
+  setDvgaTab('active');
+  const note = document.getElementById('dvga-dispatch-note');
   if(note){
     note.style.display = 'block';
-    note.innerHTML = `<strong>Направлено на рассмотрение в территориальные ДВГА.</strong> ${selected.length} ${selected.length===1?'объект распределён':'объект(ов) распределено'} по ${regions.length} ${regions.length===1?'региону':'регионам'} (${regions.join(', ')}). Ход рассмотрения — во вкладке «Рассмотрение в ДВГА».`;
+    note.innerHTML = `<strong>Проект «${d.name}» направлен на рассмотрение в территориальные ДВГА.</strong> ${count} ${count===1?'объект распределён':'объект(ов) распределено'} по ${regions.length} ${regions.length===1?'региону':'регионам'} (${regions.join(', ')}).`;
   }
+}
+function exportSurDraft(i){
+  const d = surDispatchDrafts[i];
+  if(!d) return;
+  if(!d.objects || !d.objects.length){
+    alert('В составе нет объектов — экспортировать нечего.');
+    return;
+  }
+  const labelFn = d.contour === 'b' ? riskLabelB : riskLabelA;
+  const header = ['№','Наименование субъекта','БИН','Регион','КО','Дата регистрации','Дата последнего контроля','Вид деятельности','Уровень риска','Основание включения'];
+  const rows = d.objects.map((o,oi)=>[oi+1, o.name, o.bin||'', o.region||'', o.koLabel||saKoLabel(o)||'', o.regDate||'', o.lastAuditDate||'', o.category||o.kind||'', labelFn[o.risk]||o.risk||'', (o.basis||'').replace(/<[^>]+>/g,'')]);
+  const statusSlug = d.status === 'sent' ? 'napravlen' : 'proekt';
+  const safeName = d.name.replace(/[«»]/g,'').replace(/\s+/g,'_');
+  downloadCSV(`${statusSlug}_${safeName}.csv`, [header, ...rows]);
 }
 function openDvgaMain(){
   showScreen('list');
@@ -6617,11 +6776,15 @@ function renderDvgaMain(){
 }
 function setDvgaTab(tab){
   dvgaTab = tab;
+  document.getElementById('dtab-draft').classList.toggle('active', tab==='draft');
   document.getElementById('dtab-active').classList.toggle('active', tab==='active');
   document.getElementById('dtab-returned').classList.toggle('active', tab==='returned');
+  document.getElementById('dvga-draft-content').style.display = tab==='draft' ? 'block' : 'none';
   document.getElementById('dvga-active-content').style.display = tab==='active' ? 'block' : 'none';
   document.getElementById('dvga-returned-content').style.display = tab==='returned' ? 'block' : 'none';
-  if(tab==='active') renderDvgaActive(); else renderDvgaReturned();
+  if(tab==='draft') renderDvgaDrafts();
+  else if(tab==='active') renderDvgaActive();
+  else renderDvgaReturned();
 }
 function dvgaBatchStatusBadge(status){
   const map = {
@@ -6656,7 +6819,7 @@ function renderDvgaActive(){
           <td>${b.objects.length}</td>
           <td>${dvgaBatchStatusBadge(b.status)}</td>
           ${dvgaRowActionsCell(b, i)}
-        </tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Нет объектов, направленных на рассмотрение. Отметьте объекты на вкладке «Проверка» и отправьте их в ДВГА по регионам.</td></tr>`}
+        </tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Нет объектов, направленных на рассмотрение. Отметьте объекты на вкладке «Проверка», сформируйте проект и направьте его в ДВГА — вкладка «Черновики».</td></tr>`}
       </tbody>
     </table></div>`;
 }
