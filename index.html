@@ -6318,10 +6318,28 @@ function regionDative(region){ return REGION_DATIVE[region] || region; }
 function departmentNameForRegion(region){ return `Департамент внутреннего государственного аудита по ${regionDative(region)}`; }
 const OFFICIAL_AUDIT_QUARTERS = ['1 квартал','2 квартал','3 квартал','4 квартал'];
 function isFinReportAudit(auditType){ return /финансов\S*\s+отч/i.test(auditType||''); }
+/* Аудит финансовой отчётности администраторов бюджетных программ проводится КВГА централизованно
+   (см. officialEngagementName — для него уже не используется регион объекта), как и объекты, для
+   которых регион вообще не определён (республиканские органы и т.п.) — такие объекты и раньше ошибочно
+   попадали в «г. Астана» через deriveRegion. Оба случая относятся к сводному блоку «Комитет», а не к
+   территориальному ДВГА, — см. CENTRAL_BUCKET/departmentNameFor ниже. */
+const CENTRAL_BUCKET = '\u0000CENTRAL';
+const CENTRAL_DEPT_NAME = 'Комитет внутреннего государственного аудита МФ РК';
+function isCentralAuditGroup(region, auditType){
+  return isFinReportAudit(auditType) || !region || region === 'Регион не указан';
+}
+function engagementBucket(o){
+  const region = saObjRegion(o);
+  const auditType = o.auditType || 'Аудит соответствия';
+  return isCentralAuditGroup(region, auditType) ? CENTRAL_BUCKET : region;
+}
+function departmentNameFor(bucket){
+  return bucket === CENTRAL_BUCKET ? CENTRAL_DEPT_NAME : departmentNameForRegion(bucket);
+}
 function officialEngagementName(region, auditType){
-  return isFinReportAudit(auditType)
-    ? 'Государственный аудит финансовой отчётности администраторов бюджетных программ'
-    : `Государственный аудит соответствия планирования, использования бюджетных средств и активов государства по ${regionDative(region)}`;
+  if(isFinReportAudit(auditType)) return 'Государственный аудит финансовой отчётности администраторов бюджетных программ';
+  if(!region || region === 'Регион не указан') return 'Государственный аудит соответствия планирования, использования бюджетных средств и активов государства';
+  return `Государственный аудит соответствия планирования, использования бюджетных средств и активов государства по ${regionDative(region)}`;
 }
 function finReportPeriodLabel(year){
   const y = Number(year) || CURRENT_YEAR;
@@ -6373,28 +6391,34 @@ function exportApprovedPerechenOfficial(l){
   const byRegion = {};
   const regionOrder = [];
   l.objects.forEach(o=>{
-    const region = saObjRegion(o);
-    if(!byRegion[region]){ byRegion[region] = []; regionOrder.push(region); }
-    byRegion[region].push(o);
+    const bucket = engagementBucket(o); // CENTRAL_BUCKET — для аудита финансовой отчётности и объектов без определённого региона (см. engagementBucket)
+    if(!byRegion[bucket]){ byRegion[bucket] = []; regionOrder.push(bucket); }
+    byRegion[bucket].push(o);
   });
-  regionOrder.sort((a,b)=>a.localeCompare(b,'ru'));
+  // Комитет (централизованный блок) всегда идёт первым, как в образце документа; территориальные ДВГА — по алфавиту
+  regionOrder.sort((a,b)=>{
+    if(a===CENTRAL_BUCKET) return -1;
+    if(b===CENTRAL_BUCKET) return 1;
+    return a.localeCompare(b,'ru');
+  });
 
   regionOrder.forEach(region=>{
+    const isCentral = region === CENTRAL_BUCKET;
     const deptRowIdx = rows.length;
-    rows.push([departmentNameForRegion(region)]);
+    rows.push([departmentNameFor(region)]);
     merges.push({s:{r:deptRowIdx,c:0}, e:{r:deptRowIdx,c:10}});
 
     const groups = {};
     const groupOrder = [];
     byRegion[region].forEach(o=>{
       const auditType = (o.auditType || 'Аудит соответствия');
-      const key = region + '|' + auditType; // одна группа на департамент × тип аудита — совпадает с ключом группировки в renderGroupDetailBody, чтобы ручные правки (setEngOverride) применялись к тем же строкам
+      const key = region + '|' + auditType; // одна группа на департамент (или Комитет) × тип аудита — совпадает с ключом группировки в computeEngagementGroups, чтобы ручные правки (setEngOverride) применялись к тем же строкам
       if(!groups[key]){
         const ov = engOverrideFor(l, key);
         groups[key] = {
           auditType,
           period: (ov && ov.period) || officialEngagementPeriod(auditType, key, Y),
-          name: (ov && ov.name) || officialEngagementName(region, auditType),
+          name: (ov && ov.name) || officialEngagementName(isCentral ? null : region, auditType),
           objects: []
         };
         groupOrder.push(key);
@@ -6427,14 +6451,14 @@ function exportApprovedPerechenOfficial(l){
       if(groupEndRow > groupStartRow){
         [2,3,4,5].forEach(c=> merges.push({s:{r:groupStartRow,c}, e:{r:groupEndRow,c}}));
       }
-      rows.push(['','Всего по аудиторскому мероприятию:','','','','',
+      rows.push(['Всего по аудиторскому мероприятию:','','','','','',
         fmtRuAmount(engTotal[0]), fmtRuAmount(engTotal[1]), fmtRuAmount(engTotal[2]), fmtRuAmount(engTotal[3]), fmtRuAmount(engTotal[4])]);
-      merges.push({s:{r:rows.length-1,c:1}, e:{r:rows.length-1,c:5}});
+      merges.push({s:{r:rows.length-1,c:0}, e:{r:rows.length-1,c:5}});
       for(let vi=0; vi<5; vi++) deptTotal[vi]+=engTotal[vi];
     });
-    rows.push(['','Всего по ДВГА:','','','','',
+    rows.push([isCentral ? 'ВСЕГО по КВГА' : 'Всего по ДВГА:','','','','','',
       fmtRuAmount(deptTotal[0]), fmtRuAmount(deptTotal[1]), fmtRuAmount(deptTotal[2]), fmtRuAmount(deptTotal[3]), fmtRuAmount(deptTotal[4])]);
-    merges.push({s:{r:rows.length-1,c:1}, e:{r:rows.length-1,c:5}});
+    merges.push({s:{r:rows.length-1,c:0}, e:{r:rows.length-1,c:5}});
   });
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -6457,14 +6481,16 @@ function computeEngagementGroups(item){
   const groups = {};
   const order = [];
   (item.objects||[]).forEach(o=>{
-    const region = saObjRegion(o);
+    const region = engagementBucket(o); // CENTRAL_BUCKET для КВГА-централизованных групп — см. engagementBucket
     const auditType = o.auditType || 'Аудит соответствия';
-    const key = region + '|' + auditType;
+    const key = region + '|' + auditType; // тот же ключ, что и в exportApprovedPerechenOfficial — иначе ручные правки (setEngOverride) разойдутся между экраном и выгрузкой
     if(!groups[key]){ groups[key] = { key, region, auditType, objects: [] }; order.push(key); }
     groups[key].objects.push(o);
   });
   order.sort((ka,kb)=>{
     const ga = groups[ka], gb = groups[kb];
+    if(ga.region===CENTRAL_BUCKET && gb.region!==CENTRAL_BUCKET) return -1;
+    if(gb.region===CENTRAL_BUCKET && ga.region!==CENTRAL_BUCKET) return 1;
     const rc = ga.region.localeCompare(gb.region,'ru');
     return rc || (ga.auditType||'').localeCompare(gb.auditType||'','ru');
   });
@@ -6859,14 +6885,14 @@ function renderGroupDetailBody(){
     const groups = computeEngagementGroups(item);
     document.getElementById('gd-objects').innerHTML = groups.map(g=>{
       const ov = engOverrideFor(item, g.key);
-      const nameVal = (ov && ov.name) || officialEngagementName(g.region, g.auditType);
+      const nameVal = (ov && ov.name) || officialEngagementName(g.region===CENTRAL_BUCKET ? null : g.region, g.auditType);
       const periodVal = (ov && ov.period) || officialEngagementPeriod(g.auditType, g.key, itemYear);
       const keyEsc = g.key.replace(/'/g,"\\'");
       const rowsHtml = g.objects.map(o => objTableRow(o, item.objects.indexOf(o), labelFn, showX)).join('');
       return `
       <div class="card" style="overflow-x:auto;margin-bottom:12px;padding:0;">
         <div style="padding:12px 14px 10px;border-bottom:1px solid var(--border);">
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${departmentNameForRegion(g.region)} · ${(g.auditType||'').toLowerCase()} · объектов: ${g.objects.length}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${departmentNameFor(g.region)} · ${(g.auditType||'').toLowerCase()} · объектов: ${g.objects.length}</div>
           <div style="display:grid;grid-template-columns:1fr 240px;gap:10px;">
             <div class="field" style="margin:0;">
               <label>Наименование аудиторского мероприятия</label>
@@ -7326,7 +7352,11 @@ function deriveRegion(name){
   for(const [label, marker] of OBLAST_PATTERNS){
     if(name.includes(marker)) return label;
   }
-  return 'г. Астана';
+  // Раньше здесь ошибочно возвращалось 'г. Астана' — республиканские органы без привязки к
+  // конкретному региону (министерства, комитеты и т.п.) молча попадали в перечень г. Астана.
+  // Используем тот же признак «регион не определён», что и в saObjRegion/officialEngagementName,
+  // чтобы такие объекты корректно уходили в сводный блок «Комитет» (см. CENTRAL_BUCKET).
+  return 'Регион не указан';
 }
 function populateRegionFilterChk(){
   const sel = document.getElementById('chk-f-region');
