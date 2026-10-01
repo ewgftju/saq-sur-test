@@ -4972,6 +4972,7 @@ function setPerechenMode(mode){
   document.getElementById('btn-mode-abp').classList.toggle('active', mode==='abp');
   document.getElementById('btn-mode-forms').classList.toggle('active', mode==='forms');
   document.getElementById('f-type').style.display = mode==='abp' ? 'none' : 'inline-block';
+  document.getElementById('f-region').style.display = mode==='abp' ? 'none' : '';
   document.getElementById('subjects-content-wrap').style.display = mode==='forms' ? 'none' : 'block';
   document.getElementById('forms-panel').style.display = mode==='forms' ? 'block' : 'none';
 
@@ -5062,7 +5063,7 @@ function applyFilters(){
     return (!year || o.year === year) &&
       (isABP || !type || o.auditType === type) &&
       (!risk || o.risk === risk) &&
-      (!region || objRegion === region) &&
+      (isABP || !region || objRegion === region) &&
       (currentContour!=='a' || !ct || o.checkType === ct) &&
       (!q || name.toLowerCase().includes(q));
   });
