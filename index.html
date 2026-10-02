@@ -6343,17 +6343,17 @@ function regionDative(region){ return REGION_DATIVE[region] || region; }
 function departmentNameForRegion(region){ return `Департамент внутреннего государственного аудита по ${regionDative(region)}`; }
 const OFFICIAL_AUDIT_QUARTERS = ['1 квартал','2 квартал','3 квартал','4 квартал'];
 function isFinReportAudit(auditType){ return /финансов\S*\s+отч/i.test(auditType||''); }
-/* КВГА проводит централизованно (блок «Комитет», не территориальный ДВГА):
-   1) аудит финансовой отчётности администраторов бюджетных программ — всегда, вне зависимости от региона
-      объекта (см. officialEngagementName — для него регион не используется в названии);
-   2) «флагманский» аудит соответствия ОБЛАСТНОГО уровня — Аппарат акима и областные управления/отделы
-      конкретной области целиком, ОДНИМ мероприятием на область (в образце документа — например, все
-      департаменты акимата Мангистауской области под шапкой «Комитет», при этом каждая область — это своё
-      отдельное мероприятие внутри блока «Комитет», не слитое с другими областями);
-   3) объекты, для которых регион вообще не определяется (республиканские органы и т.п.) — такие объекты
-      раньше ошибочно попадали в «г. Астана» через deriveRegion.
-   Районные/городские (не облцентр) и иные не-«флагманские» объекты того же региона остаются в
-   территориальном «Департамент ДВГА по региону» — см. isOblastLevelBody. */
+/* Субъекты изначально распределены по регионам — исполнитель по умолчанию ВСЕГДА своя территориальная ДВГА.
+   В блоке «Комитет» по умолчанию (без ручного переноса «Исполнителя») остаются только:
+   1) аудит финансовой отчётности администраторов бюджетных программ — централизован по своей природе,
+      вне зависимости от региона объекта (см. officialEngagementName — регион не используется в названии);
+   2) объекты, для которых регион вообще не определяется (министерства, КПМ, АП и другие республиканские
+      органы) — такие объекты раньше ошибочно попадали в «г. Астана» через deriveRegion.
+   «Флагманский» аудит соответствия ОБЛАСТНОГО уровня (Аппарат акима и областные управления/отделы целиком,
+   ОДНИМ мероприятием на область) — это ОБЫЧНЫЙ региональный объект, стартует у своей территориальной ДВГА,
+   как и любой другой; в Комитет он попадает только если «Исполнитель» переназначен вручную (КВГА забрала
+   его себе — см. engOwnerOptions/setEngOverride). isOblastLevelBody здесь влияет только на группировку —
+   не сливать такой областной аудит с районными/городскими объектами того же региона в одно мероприятие. */
 const CENTRAL_BUCKET = '\u0000CENTRAL';
 const CENTRAL_DEPT_NAME = 'Комитет внутреннего государственного аудита МФ РК';
 function isOblastLevelBody(name){
@@ -6370,20 +6370,35 @@ function engagementInfo(o){
   const auditType = o.auditType || 'Аудит соответствия';
   const finReport = isFinReportAudit(auditType);
   const noRegion = !region || region === 'Регион не указан';
+  // central — ТОЛЬКО объекты, у которых Комитет — единственно возможный исполнитель (нет никакой
+  // территориальной альтернативы вообще). «Флагманский» статус сюда не входит: такие объекты стартуют
+  // у своей территориальной ДВГА и попадают в Комитет только через ручной override «Исполнителя».
+  const central = finReport || noRegion;
   const oblastFlagship = !finReport && !noRegion && isOblastLevelBody(o.name);
-  const central = finReport || noRegion || oblastFlagship;
   return {
     bucket: central ? CENTRAL_BUCKET : region,
-    // nameRegion — регион для названия/группировки мероприятия: у флагманского областного аудита это
-    // фактическая область объекта (разные области не сливаются в одну группу); у финотчётности и
-    // безрегиональных республиканских объектов — null (единое обобщённое мероприятие); у территориальных — сам регион.
-    nameRegion: central ? (oblastFlagship ? region : null) : region,
+    // nameRegion — регион для названия мероприятия; у финотчётности и безрегиональных республиканских
+    // объектов региона в названии нет (null), у всех остальных (включая флагманские) — сам регион.
+    nameRegion: central ? null : region,
     auditType,
+    // flagship — ТОЛЬКО для группировки: не даёт флагманскому областному аудиту слиться в одно мероприятие
+    // с районными/городскими объектами того же региона и типа аудита, когда оба естественно лежат у одной
+    // и той же территориальной ДВГА (см. ключ группы в computeEngagementGroups/exportApprovedPerechenOfficial).
+    flagship: oblastFlagship,
   };
 }
 function engagementBucket(o){ return engagementInfo(o).bucket; }
 function departmentNameFor(bucket){
   return bucket === CENTRAL_BUCKET ? CENTRAL_DEPT_NAME : departmentNameForRegion(bucket);
+}
+function regionAlphaKey(region){
+  // Для сортировки регионов по алфавиту ИМЕНИ, а не грамматической обёртки. Большинство регионов названы
+  // «<Имя>ская область» — сортировка по сырой строке уже начинается с имени. Но три новых региона названы
+  // наоборот — «область Абай», «область Жетісу», «область Ұлытау» — и три города — «г. Астана», «г. Алматы»,
+  // «г. Шымкент» — у них обёртка стоит ПЕРЕД именем, и сортировка по сырой строке ставит их по «о»/«г», а не
+  // по настоящей первой букве имени (встанут не на своё место среди остальных регионов). Срезаем обёртку
+  // только для СРАВНЕНИЯ при сортировке — отображаемое название (departmentNameFor и т.п.) не меняется.
+  return String(region||'').replace(/^область\s+/i,'').replace(/^г\.\s*/i,'');
 }
 function officialEngagementName(region, auditType){
   if(isFinReportAudit(auditType)) return 'Государственный аудит финансовой отчётности администраторов бюджетных программ';
@@ -6442,7 +6457,7 @@ function exportApprovedPerechenOfficial(l){
   const regionOrder = [];
   l.objects.forEach(o=>{
     const info = engagementInfo(o); // bucket: CENTRAL_BUCKET — для аудита финансовой отчётности, «флагманских» областных аудитов и объектов без определённого региона (см. engagementInfo)
-    const natKey = info.bucket + '|' + (info.nameRegion||'') + '|' + info.auditType;
+    const natKey = info.bucket + '|' + (info.nameRegion||'') + '|' + info.auditType + '|' + (info.flagship?'1':'0');
     const ov = engOverrideFor(l, natKey);
     const bucket = (ov && ov.owner) || info.bucket; // «Исполнитель» переопределён вручную — КВГА забрала мероприятие себе или отдала территориальному ДВГА
     if(!byRegion[bucket]){ byRegion[bucket] = []; regionOrder.push(bucket); }
@@ -6452,7 +6467,7 @@ function exportApprovedPerechenOfficial(l){
   regionOrder.sort((a,b)=>{
     if(a===CENTRAL_BUCKET) return -1;
     if(b===CENTRAL_BUCKET) return 1;
-    return a.localeCompare(b,'ru');
+    return regionAlphaKey(a).localeCompare(regionAlphaKey(b),'ru');
   });
 
   regionOrder.forEach(region=>{
@@ -6467,7 +6482,7 @@ function exportApprovedPerechenOfficial(l){
       const info = engagementInfo(o);
       const auditType = info.auditType;
       const nameRegion = info.nameRegion; // регион для названия мероприятия — у «флагманских» областных групп свой для каждой области, поэтому разные области не сливаются в одну группу
-      const key = info.bucket + '|' + (nameRegion||'') + '|' + auditType; // ВСЕГДА исходный (естественный) bucket, не текущий «region» секции — иначе override «Исполнителя» потерял бы связь со своим ключом. Совпадает с ключом группировки в computeEngagementGroups.
+      const key = info.bucket + '|' + (nameRegion||'') + '|' + auditType + '|' + (info.flagship?'1':'0'); // ВСЕГДА исходный (естественный) bucket, не текущий «region» секции — иначе override «Исполнителя» потерял бы связь со своим ключом. Совпадает с ключом группировки в computeEngagementGroups.
       if(!groups[key]){
         const ov = engOverrideFor(l, key);
         groups[key] = {
@@ -6489,7 +6504,7 @@ function exportApprovedPerechenOfficial(l){
         // внутри Комитета: «флагманские» областные группы по алфавиту региона — впереди обобщённых (финотчётность/без региона)
         if(!!ga.nameRegion !== !!gb.nameRegion) return ga.nameRegion ? -1 : 1;
         if(ga.nameRegion && gb.nameRegion){
-          const rc = ga.nameRegion.localeCompare(gb.nameRegion,'ru');
+          const rc = regionAlphaKey(ga.nameRegion).localeCompare(regionAlphaKey(gb.nameRegion),'ru');
           if(rc) return rc;
         }
       }
@@ -6547,7 +6562,7 @@ function computeEngagementGroups(item){
   const order = [];
   (item.objects||[]).forEach(o=>{
     const info = engagementInfo(o); // bucket — департамент-получатель (регион либо CENTRAL_BUCKET); nameRegion — регион для названия мероприятия (различает «флагманские» областные группы внутри Комитета)
-    const key = info.bucket + '|' + (info.nameRegion||'') + '|' + info.auditType; // тот же ключ, что и в exportApprovedPerechenOfficial — иначе ручные правки (setEngOverride) разойдутся между экраном и выгрузкой
+    const key = info.bucket + '|' + (info.nameRegion||'') + '|' + info.auditType + '|' + (info.flagship?'1':'0'); // тот же ключ, что и в exportApprovedPerechenOfficial — иначе ручные правки (setEngOverride) разойдутся между экраном и выгрузкой
     if(!groups[key]){
       // region — ЭФФЕКТИВНЫЙ департамент-получатель: если «Исполнитель» переопределён вручную (КВГА забрала
       // мероприятие себе или наоборот отдала территориальному ДВГА) — берём override, иначе исходный info.bucket.
@@ -6567,12 +6582,12 @@ function computeEngagementGroups(item){
       // внутри Комитета: «флагманские» областные группы по алфавиту региона — впереди обобщённых (финотчётность/без региона)
       if(!!ga.nameRegion !== !!gb.nameRegion) return ga.nameRegion ? -1 : 1;
       if(ga.nameRegion && gb.nameRegion){
-        const rc = ga.nameRegion.localeCompare(gb.nameRegion,'ru');
+        const rc = regionAlphaKey(ga.nameRegion).localeCompare(regionAlphaKey(gb.nameRegion),'ru');
         if(rc) return rc;
       }
       return (ga.auditType||'').localeCompare(gb.auditType||'','ru');
     }
-    const rc = ga.region.localeCompare(gb.region,'ru');
+    const rc = regionAlphaKey(ga.region).localeCompare(regionAlphaKey(gb.region),'ru');
     return rc || (ga.auditType||'').localeCompare(gb.auditType||'','ru');
   });
   return order.map(k=>groups[k]);
@@ -7252,7 +7267,7 @@ function renderGroupDetailBody(){
       const engTotals = [0,0,0,0,0];
       const rowsHtml = g.objects.map(o=>{
         const oi = item.objects.indexOf(o);
-        const r = perechenObjTableRow(o, bucketN++, years, itemYear, showX, oi);
+        const r = perechenObjTableRow(o, bucketN++, years, itemYear, false, oi); // состав объектов в проекте перечня не меняется отсюда — субъекты уже распределены по регионам и согласованы на этапе рассмотрения в ДВГА; здесь можно поменять только исполнителя, срок и наименование мероприятия
         for(let vi=0; vi<4; vi++) engTotals[vi] += r.nums[vi];
         engTotals[4] += r.total;
         return r.html;
@@ -7297,7 +7312,7 @@ function renderGroupDetailBody(){
           </div>
         </div>
         <table>
-          ${perechenObjTableHead(years, itemYear, showX)}
+          ${perechenObjTableHead(years, itemYear, false)}
           <tbody>${rowsHtml}
             <tr>
               <td colspan="2" style="background:var(--accent-bg);color:var(--accent);font-weight:600;padding:9px 12px;">Всего по аудиторскому мероприятию:</td>
@@ -7332,17 +7347,22 @@ function renderGroupDetailBody(){
   const lockedNote = document.getElementById('gd-locked-note');
   const editable = isGroupEditable(item);
 
+  // Контур Б: состав объектов перечня не редактируется с этого экрана вообще (ни в черновике, ни через приказ) —
+  // субъекты уже распределены по регионам и согласованы на этапе «Рассмотрение в ДВГА»; здесь меняется только
+  // наименование мероприятия, исполнитель и срок. Поэтому кнопка «Добавить объекты» для контура Б не показывается.
   if(!editable){
     lockedNote.style.display = amendmentActive ? 'none' : 'block';
-    lockedNote.innerHTML = 'Документ уже направлен на согласование/утверждение. Изменение состава — только через приказ на внесение изменений.';
+    lockedNote.innerHTML = gdIsB
+      ? 'Документ уже направлен на согласование/утверждение. Изменить наименование мероприятия, исполнителя и срок можно только через приказ на внесение изменений.'
+      : 'Документ уже направлен на согласование/утверждение. Изменение состава — только через приказ на внесение изменений.';
     editBtn.style.display = 'inline-flex';
     editBtn.innerHTML = amendmentActive ? '<i class="ti ti-check"></i>Завершить приказ' : '<i class="ti ti-file-diff"></i>Внести изменения (приказ)';
-    addBtn.style.display = amendmentActive ? 'inline-flex' : 'none';
+    addBtn.style.display = (!gdIsB && amendmentActive) ? 'inline-flex' : 'none';
   } else {
     lockedNote.style.display = 'none';
     editBtn.style.display = 'inline-flex';
     editBtn.innerHTML = groupEditMode ? '<i class="ti ti-check"></i>Готово' : '<i class="ti ti-edit"></i>Редактировать';
-    addBtn.style.display = groupEditMode ? 'inline-flex' : 'none';
+    addBtn.style.display = (!gdIsB && groupEditMode) ? 'inline-flex' : 'none';
   }
 
   document.getElementById('gd-amendments').innerHTML = (item.amendments && item.amendments.length) ? `
