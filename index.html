@@ -709,7 +709,7 @@
           <table>
             <thead><tr>
               <th>Список</th><th style="width:130px;">Год</th><th style="width:90px;">Объектов</th>
-              <th style="width:150px;">Статус</th><th style="width:260px;"></th>
+              <th style="width:150px;">Статус</th><th style="width:330px;"></th>
             </tr></thead>
             <tbody id="sa-list-body"></tbody>
           </table>
@@ -734,7 +734,9 @@
           <div class="actions">
             <button class="btn" id="gd-edit-btn" onclick="toggleGroupEdit()"><i class="ti ti-edit"></i>Редактировать</button>
             <button class="btn btn-primary" id="gd-add-btn" style="display:none;" onclick="startAddToGroup()"><i class="ti ti-plus"></i>Добавить объекты</button>
-            <button class="btn" id="gd-export-btn" onclick="exportSemiAnnualList(currentGroupDetail.index)"><i class="ti ti-file-spreadsheet"></i>Выгрузить (Excel)</button>
+            <button class="btn" id="gd-export-xlsx-btn" onclick="exportSemiAnnualList(currentGroupDetail.index,'xlsx')"><i class="ti ti-file-spreadsheet"></i>Excel</button>
+            <button class="btn" id="gd-export-docx-btn" onclick="exportSemiAnnualList(currentGroupDetail.index,'docx')"><i class="ti ti-file-text"></i>Word</button>
+            <span id="gd-send-wrap" style="display:inline-flex;"></span>
           </div>
           <div class="note" id="gd-locked-note" style="display:none;"></div>
           <div id="gd-amendments"></div>
@@ -1102,6 +1104,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="docx.iife.js"></script>
 <script>
 const CURRENT_YEAR = 2026; // условное «сегодня» демо-прототипа — синхронизировано с датами пакетов dfo.kz и расчётов
 /* ===================== ДАННЫЕ: КОНТУР Б — ПО КОНТЕКСТАМ ===================== */
@@ -4124,7 +4127,7 @@ function renderPerechenDraft(){
       <button class="btn btn-primary" onclick="openSemiAnnualForm()"><i class="ti ti-folder-plus"></i>Открыть формирование</button>
     </div>
     <div class="card"><table>
-      <thead><tr><th>Наименование</th><th style="width:130px;">Год</th><th style="width:90px;">Объектов</th><th style="width:150px;">Статус</th><th style="width:260px;"></th></tr></thead>
+      <thead><tr><th>Наименование</th><th style="width:130px;">Год</th><th style="width:90px;">Объектов</th><th style="width:150px;">Статус</th><th style="width:330px;"></th></tr></thead>
       <tbody>${drafts.length ? drafts.map(({l,i})=>`
         <tr class="row" onclick="openGroupDetail('semiannual', ${i})">
           <td>${l.name}</td><td style="color:var(--text-2);">${l.year}</td><td>${l.count}</td>
@@ -4142,10 +4145,10 @@ function renderPerechenApproved(){
   el.innerHTML = `
     <div class="section-title" style="margin-top:0;">${approvedHeading} (${approved.length})</div>
     <div class="card"><table>
-      <thead><tr><th>${label}</th><th style="width:130px;">Год</th><th style="width:90px;">Объектов</th><th style="width:190px;">Статус</th><th style="width:120px;"></th></tr></thead>
+      <thead><tr><th>${label}</th><th style="width:130px;">Год</th><th style="width:90px;">Объектов</th><th style="width:190px;">Статус</th><th style="width:190px;"></th></tr></thead>
       <tbody>${approved.length ? approved.map(({l,i})=>`
         <tr class="row" onclick="openGroupDetail('semiannual', ${i})"><td>${l.name}</td><td style="color:var(--text-2);">${l.year}</td><td>${l.count}</td><td><span class="badge sent">Утверждён и направлен</span></td>
-          <td onclick="event.stopPropagation()"><button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="exportSemiAnnualList(${i})" title="Выгрузить в Excel"><i class="ti ti-file-spreadsheet"></i>Excel</button></td>
+          <td onclick="event.stopPropagation()"><div style="display:flex;gap:6px;justify-content:flex-end;">${perechenExportButtons(l, i)}</div></td>
         </tr>`).join('') :
         `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">Утверждённых пока нет</td></tr>`}</tbody>
     </table></div>`;
@@ -6267,15 +6270,26 @@ function renderSemiAnnualLists(){
     </tr>
   `).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">Пока ничего не сформировано</td></tr>`;
 }
+function refreshGroupDetailIfOpen(i){
+  // Смена статуса (На согласование/На утверждение/Утвердить) доступна и прямо с экрана «Состав» (gd-send-wrap),
+  // не только из списка — если сейчас открыт именно этот перечень, перерисовываем экран на месте, без перехода
+  // обратно в список (см. жалобу «почему я должен выходить, чтобы отправить на согласование»).
+  if(document.getElementById('view-group-detail').style.display === 'block'
+     && currentGroupDetail && currentGroupDetail.type === 'semiannual' && currentGroupDetail.index === i){
+    renderGroupDetailBody();
+  }
+}
 function sendForCoordination(i){
   semiAnnualLists[i].status = 'coordination';
   renderSemiAnnualLists();
   renderPerechenDraft();
+  refreshGroupDetailIfOpen(i);
 }
 function sendForApproval(i){
   semiAnnualLists[i].status = 'approval';
   renderSemiAnnualLists();
   renderPerechenDraft();
+  refreshGroupDetailIfOpen(i);
 }
 function finalizeApproval(i){
   const l = semiAnnualLists[i];
@@ -6285,6 +6299,7 @@ function finalizeApproval(i){
   renderSemiAnnualLists();
   renderPerechenDraft();
   renderTable(); renderCards();
+  refreshGroupDetailIfOpen(i);
   const el = document.getElementById('sa-success');
   el.style.display = 'block';
   el.innerHTML = l.contour==='b'
@@ -6295,20 +6310,22 @@ function perechenArtifactLabelFor(contour){
   return contour === 'b' ? 'Годовой список' : 'Перечень объектов';
 }
 function perechenRowActionsCell(l, i){
-  const exportBtn = `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="exportSemiAnnualList(${i})" title="Выгрузить в Excel"><i class="ti ti-file-spreadsheet"></i>Excel</button>`;
-  return `<td onclick="event.stopPropagation()"><div style="display:flex;gap:6px;justify-content:flex-end;">${exportBtn}${perechenActionButton(l, i)}</div></td>`;
+  return `<td onclick="event.stopPropagation()"><div style="display:flex;gap:6px;justify-content:flex-end;">${perechenExportButtons(l, i)}${perechenActionButton(l, i)}</div></td>`;
 }
 /* ---------- выгрузка сохранённого перечня (проекта либо утверждённого) в Excel/CSV ---------- */
-function exportSemiAnnualList(i){
+function exportSemiAnnualList(i, format){
   const l = semiAnnualLists[i];
   if(!l) return;
   if(!l.objects || !l.objects.length){
     alert('В составе нет объектов — экспортировать нечего.');
     return;
   }
-  if(l.contour === 'b' && l.status === 'approved'){
-    // утверждённый годовой список (ЭВГА) выгружается по форме официального перечня, см. exportApprovedPerechenOfficial()
-    exportApprovedPerechenOfficial(l);
+  if(l.contour === 'b'){
+    // Годовой список (контур Б / ЭВГА) ВСЕГДА выгружается по форме официального перечня — в ЛЮБОМ статусе
+    // (проект, на согласовании, на утверждении, утверждён), а не только когда уже утверждён: вид на экране
+    // не меняется по статусу (см. renderGroupDetailBody), и выгрузка должна соответствовать ему точно так же.
+    if(format === 'docx') exportApprovedPerechenOfficialDocx(l);
+    else exportApprovedPerechenOfficial(l);
     return;
   }
   const labelFn = l.contour === 'b' ? riskLabelB : riskLabelA;
@@ -6317,6 +6334,15 @@ function exportSemiAnnualList(i){
   const statusSlug = {draft:'proekt', coordination:'na_soglasovanii', approval:'na_utverzhdenii', approved:'utverzhden'}[l.status] || l.status;
   const safeName = l.name.replace(/[«»]/g,'').replace(/\s+/g,'_');
   downloadCSV(`${statusSlug}_${safeName}.csv`, [header, ...rows]);
+}
+function perechenExportButtons(l, i){
+  // Контур Б выгружается по официальному шаблону (см. buildOfficialPerechenData) — доступен и в Excel, и в Word.
+  // Контур А (проф.контроль) официального шаблона не имеет — у него как и раньше только таблица в Excel/CSV.
+  if(l.contour === 'b'){
+    return `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="exportSemiAnnualList(${i},'xlsx')" title="Выгрузить в Excel"><i class="ti ti-file-spreadsheet"></i>Excel</button>
+      <button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="exportSemiAnnualList(${i},'docx')" title="Выгрузить в Word"><i class="ti ti-file-text"></i>Word</button>`;
+  }
+  return `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="exportSemiAnnualList(${i})" title="Выгрузить в Excel"><i class="ti ti-file-spreadsheet"></i>Excel</button>`;
 }
 
 /* ---------- официальный формат выгрузки утверждённого годового перечня (контур Б / ЭВГА) ----------
@@ -6370,24 +6396,49 @@ function engagementInfo(o){
   const auditType = o.auditType || 'Аудит соответствия';
   const finReport = isFinReportAudit(auditType);
   const noRegion = !region || region === 'Регион не указан';
+  // «АБП» (администратор бюджетных программ) — министерства, комитеты и другие республиканские органы:
+  // аудит финансовой отчётности у них централизован по своей природе, вне зависимости от того, какой регион
+  // у объекта указан (регион там — не территориальная принадлежность для целей аудита). Аудит финансовой
+  // отчётности РЯДОВОГО территориального ГУ (отдел/управление акимата) — это аудит ЕГО территориальной ДВГА,
+  // как и любой другой аудит такого ГУ, а не автоматическая централизация только по типу аудита — раньше
+  // central считался по одному лишь finReport, из-за чего местные ГУ (напр. «Отдел финансов акимата
+  // Акмолинской области») ошибочно уходили в Комитет по умолчанию.
+  const isAbp = o.kind === 'АБП';
+  const isQuasi = o.kind === 'КвазиГос';
   // central — ТОЛЬКО объекты, у которых Комитет — единственно возможный исполнитель (нет никакой
   // территориальной альтернативы вообще). «Флагманский» статус сюда не входит: такие объекты стартуют
   // у своей территориальной ДВГА и попадают в Комитет только через ручной override «Исполнителя».
-  const central = finReport || noRegion;
-  const oblastFlagship = !finReport && !noRegion && isOblastLevelBody(o.name);
+  const central = (finReport && isAbp) || noRegion;
+  // КвазиГос (АО/ТОО с госучастием) никогда не считается «флагманским областным телом» — это конкретная
+  // организация, а не подразделение акимата; исключаем явно, чтобы не словить isOblastLevelBody по любому
+  // названию без слова «района» (см. isOblastLevelBody) и не слиться в одно мероприятие с объектами ГУ.
+  const oblastFlagship = !finReport && !noRegion && !isQuasi && isOblastLevelBody(o.name);
   return {
     bucket: central ? CENTRAL_BUCKET : region,
-    // nameRegion — регион для названия мероприятия; у финотчётности и безрегиональных республиканских
-    // объектов региона в названии нет (null), у всех остальных (включая флагманские) — сам регион.
+    // nameRegion — регион для названия мероприятия; у финотчётности АБП и безрегиональных республиканских
+    // объектов региона в названии нет (null), у всех остальных (включая флагманские и КвазиГос) — сам регион.
     nameRegion: central ? null : region,
     auditType,
     // flagship — ТОЛЬКО для группировки: не даёт флагманскому областному аудиту слиться в одно мероприятие
     // с районными/городскими объектами того же региона и типа аудита, когда оба естественно лежат у одной
-    // и той же территориальной ДВГА (см. ключ группы в computeEngagementGroups/exportApprovedPerechenOfficial).
+    // и той же территориальной ДВГА (см. ключ группы — engagementGroupKey).
     flagship: oblastFlagship,
+    // quasi — КвазиГос аудируется ПОИМЕННО: предмет мероприятия всегда про деятельность конкретной организации,
+    // поэтому такой субъект никогда не объединяется в одно мероприятие ни с другим КвазиГос, ни тем более
+    // с «флагманским» аудитом ГУ того же региона — см. engagementGroupKey (добавляет субъекта в ключ).
+    quasi: isQuasi,
   };
 }
 function engagementBucket(o){ return engagementInfo(o).bucket; }
+function engagementGroupKey(o, info){
+  // ЕДИНЫЙ ключ группы мероприятия — используется и на экране (computeEngagementGroups), и в обеих выгрузках
+  // (Excel/Word), и для хранения ручных правок (engOverrides). Держим его в одном месте: предыдущая версия
+  // дублировала эту конкатенацию в трёх местах, и это уже один раз приводило к расхождению.
+  info = info || engagementInfo(o);
+  let key = info.bucket + '|' + (info.nameRegion||'') + '|' + info.auditType + '|' + (info.flagship?'1':'0');
+  if(info.quasi) key += '|Q:' + (o.bin || o.name); // у каждого субъекта КвазиГос — своя, уникальная группа
+  return key;
+}
 function departmentNameFor(bucket){
   return bucket === CENTRAL_BUCKET ? CENTRAL_DEPT_NAME : departmentNameForRegion(bucket);
 }
@@ -6400,7 +6451,12 @@ function regionAlphaKey(region){
   // только для СРАВНЕНИЯ при сортировке — отображаемое название (departmentNameFor и т.п.) не меняется.
   return String(region||'').replace(/^область\s+/i,'').replace(/^г\.\s*/i,'');
 }
-function officialEngagementName(region, auditType){
+function officialEngagementName(region, auditType, quasiObjName){
+  // quasiObjName — только для КвазиГос (см. engagementInfo.quasi): у такой группы всегда ровно один субъект,
+  // и предмет мероприятия — его конкретная деятельность, а не аудит соответствия «по региону» — сгенерировать
+  // точную формулировку автоматически нельзя (зависит от профиля организации), поэтому даём осмысленную
+  // заготовку, которую пользователь правит сам через обычный ввод наименования мероприятия (см. Task 14 п.2).
+  if(quasiObjName) return `Государственный аудит деятельности ${quasiObjName}`;
   if(isFinReportAudit(auditType)) return 'Государственный аудит финансовой отчётности администраторов бюджетных программ';
   if(!region || region === 'Регион не указан') return 'Государственный аудит соответствия планирования, использования бюджетных средств и активов государства';
   return `Государственный аудит соответствия планирования, использования бюджетных средств и активов государства по ${regionDative(region)}`;
@@ -6429,9 +6485,92 @@ function officialAmountForYear(o, year){
   const entry = (o.financing||[]).find(f=>String(f.year)===String(year));
   return entry ? entry.amount : '';
 }
-function exportApprovedPerechenOfficial(l){
+/* ---------- общие («сырые») данные официального перечня — единый источник и для Excel-, и для Word-выгрузки ----------
+   Раньше группировка/сортировка/суммы были продублированы внутри exportApprovedPerechenOfficial и отдельно на экране
+   (computeEngagementGroups) — рассинхронизация этого дублирования уже один раз ломала правки пользователя. Экранная
+   группировка переиспользует computeEngagementGroups напрямую; здесь — аналогичный «сырой» расчёт сразу со вставленными
+   суммами по годам и итогами, чтобы ОБЕ выгрузки (Excel и Word) рендерили из одного и того же набора данных. */
+function buildOfficialPerechenData(l){
   const Y = Number(l.year) || CURRENT_YEAR;
   const years = [Y-3, Y-2, Y-1];
+
+  const byRegion = {};
+  const regionOrder = [];
+  l.objects.forEach(o=>{
+    const info = engagementInfo(o); // bucket: CENTRAL_BUCKET — для финотчётности АБП, «флагманских» областных аудитов и объектов без определённого региона (см. engagementInfo)
+    const natKey = engagementGroupKey(o, info);
+    const ov = engOverrideFor(l, natKey);
+    const bucket = (ov && ov.owner) || info.bucket; // «Исполнитель» переопределён вручную — КВГА забрала мероприятие себе или отдала территориальному ДВГА
+    if(!byRegion[bucket]){ byRegion[bucket] = []; regionOrder.push(bucket); }
+    byRegion[bucket].push(o);
+  });
+  // Комитет (централизованный блок) всегда идёт первым, как в образце документа; территориальные ДВГА — по алфавиту
+  regionOrder.sort((a,b)=>{
+    if(a===CENTRAL_BUCKET) return -1;
+    if(b===CENTRAL_BUCKET) return 1;
+    return regionAlphaKey(a).localeCompare(regionAlphaKey(b),'ru');
+  });
+
+  const sections = regionOrder.map(bucket=>{
+    const isCentral = bucket === CENTRAL_BUCKET;
+
+    const groupsByKey = {};
+    const groupOrder = [];
+    byRegion[bucket].forEach(o=>{
+      const info = engagementInfo(o);
+      const auditType = info.auditType;
+      const nameRegion = info.nameRegion; // регион для названия мероприятия — у «флагманских» областных групп свой для каждой области, поэтому разные области не сливаются в одну группу
+      const key = engagementGroupKey(o, info); // ВСЕГДА исходный (естественный) bucket, не текущий «bucket» секции — иначе override «Исполнителя» потерял бы связь со своим ключом. Тот же ключ, что и на экране (computeEngagementGroups).
+      if(!groupsByKey[key]){
+        const ov = engOverrideFor(l, key);
+        groupsByKey[key] = {
+          key, auditType, nameRegion, quasi: info.quasi,
+          period: (ov && ov.period) || officialEngagementPeriod(auditType, key, Y),
+          name: (ov && ov.name) || officialEngagementName(nameRegion, auditType, info.quasi ? o.name : null),
+          objects: []
+        };
+        groupOrder.push(key);
+      }
+      groupsByKey[key].objects.push(o);
+    });
+    groupOrder.sort((ka,kb)=>{
+      const ga = groupsByKey[ka], gb = groupsByKey[kb];
+      const fa = isFinReportAudit(ga.auditType), fb = isFinReportAudit(gb.auditType);
+      if(fa !== fb) return fa ? 1 : -1;
+      if(isCentral){
+        // внутри Комитета: «флагманские»/КвазиГос областные группы по алфавиту региона — впереди обобщённых (финотчётность/без региона)
+        if(!!ga.nameRegion !== !!gb.nameRegion) return ga.nameRegion ? -1 : 1;
+        if(ga.nameRegion && gb.nameRegion){
+          const rc = regionAlphaKey(ga.nameRegion).localeCompare(regionAlphaKey(gb.nameRegion),'ru');
+          if(rc) return rc;
+        }
+      }
+      return ga.period.localeCompare(gb.period,'ru');
+    });
+
+    const deptTotal = [0,0,0,0,0];
+    const groups = groupOrder.map(key=>{
+      const g = groupsByKey[key];
+      const engTotal = [0,0,0,0,0];
+      const rows = g.objects.map(o=>{
+        const vals = years.concat([Y]).map(y=>officialAmountForYear(o, y));
+        const nums = vals.map(parseRuAmount);
+        const total = nums.reduce((a,b)=>a+b,0);
+        for(let vi=0; vi<4; vi++) engTotal[vi]+=nums[vi];
+        engTotal[4] += total;
+        return { obj:o, vals, total };
+      });
+      for(let vi=0; vi<5; vi++) deptTotal[vi]+=engTotal[vi];
+      return { key, name:g.name, period:g.period, auditType:g.auditType, quasi:g.quasi, rows, engTotal };
+    });
+
+    return { bucket, isCentral, deptName: departmentNameFor(bucket), groups, deptTotal };
+  });
+
+  return { Y, years, sections };
+}
+function exportApprovedPerechenOfficial(l){
+  const { Y, years, sections } = buildOfficialPerechenData(l);
   const header1 = ['№ п/п','Наименование объекта государственного аудита','Тип аудита','Вид аудита',
     'Наименование аудиторского мероприятия','Срок проведения аудита',
     `${years[0]} год`, `${years[1]} год`, `${years[2]} год`, `за истекший период ${Y} года`, 'Всего'];
@@ -6453,90 +6592,28 @@ function exportApprovedPerechenOfficial(l){
   const merges = [];
   for(let r=5;r<=7;r++) merges.push({s:{r,c:0}, e:{r,c:10}});
 
-  const byRegion = {};
-  const regionOrder = [];
-  l.objects.forEach(o=>{
-    const info = engagementInfo(o); // bucket: CENTRAL_BUCKET — для аудита финансовой отчётности, «флагманских» областных аудитов и объектов без определённого региона (см. engagementInfo)
-    const natKey = info.bucket + '|' + (info.nameRegion||'') + '|' + info.auditType + '|' + (info.flagship?'1':'0');
-    const ov = engOverrideFor(l, natKey);
-    const bucket = (ov && ov.owner) || info.bucket; // «Исполнитель» переопределён вручную — КВГА забрала мероприятие себе или отдала территориальному ДВГА
-    if(!byRegion[bucket]){ byRegion[bucket] = []; regionOrder.push(bucket); }
-    byRegion[bucket].push(o);
-  });
-  // Комитет (централизованный блок) всегда идёт первым, как в образце документа; территориальные ДВГА — по алфавиту
-  regionOrder.sort((a,b)=>{
-    if(a===CENTRAL_BUCKET) return -1;
-    if(b===CENTRAL_BUCKET) return 1;
-    return regionAlphaKey(a).localeCompare(regionAlphaKey(b),'ru');
-  });
-
-  regionOrder.forEach(region=>{
-    const isCentral = region === CENTRAL_BUCKET;
+  sections.forEach(section=>{
     const deptRowIdx = rows.length;
-    rows.push([departmentNameFor(region)]);
+    rows.push([section.deptName]);
     merges.push({s:{r:deptRowIdx,c:0}, e:{r:deptRowIdx,c:10}});
 
-    const groups = {};
-    const groupOrder = [];
-    byRegion[region].forEach(o=>{
-      const info = engagementInfo(o);
-      const auditType = info.auditType;
-      const nameRegion = info.nameRegion; // регион для названия мероприятия — у «флагманских» областных групп свой для каждой области, поэтому разные области не сливаются в одну группу
-      const key = info.bucket + '|' + (nameRegion||'') + '|' + auditType + '|' + (info.flagship?'1':'0'); // ВСЕГДА исходный (естественный) bucket, не текущий «region» секции — иначе override «Исполнителя» потерял бы связь со своим ключом. Совпадает с ключом группировки в computeEngagementGroups.
-      if(!groups[key]){
-        const ov = engOverrideFor(l, key);
-        groups[key] = {
-          auditType,
-          nameRegion,
-          period: (ov && ov.period) || officialEngagementPeriod(auditType, key, Y),
-          name: (ov && ov.name) || officialEngagementName(nameRegion, auditType),
-          objects: []
-        };
-        groupOrder.push(key);
-      }
-      groups[key].objects.push(o);
-    });
-    groupOrder.sort((ka,kb)=>{
-      const ga = groups[ka], gb = groups[kb];
-      const fa = isFinReportAudit(ga.auditType), fb = isFinReportAudit(gb.auditType);
-      if(fa !== fb) return fa ? 1 : -1;
-      if(isCentral){
-        // внутри Комитета: «флагманские» областные группы по алфавиту региона — впереди обобщённых (финотчётность/без региона)
-        if(!!ga.nameRegion !== !!gb.nameRegion) return ga.nameRegion ? -1 : 1;
-        if(ga.nameRegion && gb.nameRegion){
-          const rc = regionAlphaKey(ga.nameRegion).localeCompare(regionAlphaKey(gb.nameRegion),'ru');
-          if(rc) return rc;
-        }
-      }
-      return ga.period.localeCompare(gb.period,'ru');
-    });
-
     let n = 1;
-    const deptTotal = [0,0,0,0,0];
-    groupOrder.forEach(key=>{
-      const g = groups[key];
+    section.groups.forEach(g=>{
       const groupStartRow = rows.length;
-      const engTotal = [0,0,0,0,0];
-      g.objects.forEach(o=>{
-        const vals = years.concat([Y]).map(y=>officialAmountForYear(o, y));
-        const nums = vals.map(parseRuAmount);
-        const total = nums.reduce((a,b)=>a+b,0);
-        rows.push([n++, o.name, (g.auditType||'').toLowerCase(), 'внутренний государственный аудит',
-          g.name, g.period, vals[0], vals[1], vals[2], vals[3], total ? fmtRuAmount(total) : '']);
-        for(let vi=0; vi<4; vi++) engTotal[vi]+=nums[vi];
-        engTotal[4] += total;
+      g.rows.forEach(r=>{
+        rows.push([n++, r.obj.name, (g.auditType||'').toLowerCase(), 'внутренний государственный аудит',
+          g.name, g.period, r.vals[0], r.vals[1], r.vals[2], r.vals[3], r.total ? fmtRuAmount(r.total) : '']);
       });
       const groupEndRow = rows.length - 1;
       if(groupEndRow > groupStartRow){
         [2,3,4,5].forEach(c=> merges.push({s:{r:groupStartRow,c}, e:{r:groupEndRow,c}}));
       }
       rows.push(['Всего по аудиторскому мероприятию:','','','','','',
-        fmtRuAmount(engTotal[0]), fmtRuAmount(engTotal[1]), fmtRuAmount(engTotal[2]), fmtRuAmount(engTotal[3]), fmtRuAmount(engTotal[4])]);
+        fmtRuAmount(g.engTotal[0]), fmtRuAmount(g.engTotal[1]), fmtRuAmount(g.engTotal[2]), fmtRuAmount(g.engTotal[3]), fmtRuAmount(g.engTotal[4])]);
       merges.push({s:{r:rows.length-1,c:0}, e:{r:rows.length-1,c:5}});
-      for(let vi=0; vi<5; vi++) deptTotal[vi]+=engTotal[vi];
     });
-    rows.push([isCentral ? 'ВСЕГО по КВГА' : 'Всего по ДВГА:','','','','','',
-      fmtRuAmount(deptTotal[0]), fmtRuAmount(deptTotal[1]), fmtRuAmount(deptTotal[2]), fmtRuAmount(deptTotal[3]), fmtRuAmount(deptTotal[4])]);
+    rows.push([section.isCentral ? 'ВСЕГО по КВГА' : 'Всего по ДВГА:','','','','','',
+      fmtRuAmount(section.deptTotal[0]), fmtRuAmount(section.deptTotal[1]), fmtRuAmount(section.deptTotal[2]), fmtRuAmount(section.deptTotal[3]), fmtRuAmount(section.deptTotal[4])]);
     merges.push({s:{r:rows.length-1,c:0}, e:{r:rows.length-1,c:5}});
   });
 
@@ -6547,6 +6624,139 @@ function exportApprovedPerechenOfficial(l){
   XLSX.utils.book_append_sheet(wb, ws, `Перечень ${Y}`.slice(0,31));
   const safeName = (l.name||'perechen').replace(/[«»"]/g,'').replace(/\s+/g,'_');
   XLSX.writeFile(wb, `perechen_obektov_gosaudita_${Y}_${safeName}.xlsx`);
+}
+function downloadBlob(filename, blob){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+/* ---------- официальный перечень — выгрузка в Word (.docx), визуально по приложению к приказу «точь в точь» ----------
+   Те же самые «сырые» данные, что и в Excel (buildOfficialPerechenData) — отличается только то, КАК они
+   отрисованы: настоящая таблица Word с объединёнными по вертикали ячейками (rowSpan) вместо листа Excel. */
+async function exportApprovedPerechenOfficialDocx(l){
+  if(typeof docx === 'undefined'){
+    alert('Модуль формирования Word-файла не загрузился (docx.iife.js). Проверьте, что файл лежит рядом с index.html.');
+    return;
+  }
+  const { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, WidthType, ShadingType,
+    AlignmentType, VerticalAlign, TableLayoutType, PageOrientation, HeightRule } = docx;
+  const { Y, years, sections } = buildOfficialPerechenData(l);
+
+  const COLW = [500, 3300, 1250, 1100, 2900, 1550, 950, 950, 950, 800, 700]; // DXA; сумма 14950 = A4 landscape минус поля
+  const BAND_FILL = 'D9EEF7';       // полоса раздела — Комитет / территориальная ДВГА
+  const TOTAL_FILL = 'EAF4FB';      // промежуточный итог по мероприятию
+  const GRANDTOTAL_FILL = 'BFE0F0'; // итог по Комитету/ДВГА в целом
+
+  const cell = (text, opts={}) => new TableCell({
+    width: { size: opts.w||0, type: WidthType.DXA },
+    verticalAlign: VerticalAlign.CENTER,
+    margins: { top:40, bottom:40, left:70, right:70 },
+    ...(opts.rowSpan ? {rowSpan:opts.rowSpan} : {}),
+    ...(opts.colSpan ? {columnSpan:opts.colSpan} : {}),
+    ...(opts.fill ? {shading:{type:ShadingType.CLEAR, color:'auto', fill:opts.fill}} : {}),
+    children: [new Paragraph({
+      alignment: opts.align || AlignmentType.LEFT,
+      children: [new TextRun({ text:String(text==null?'':text), bold:!!opts.bold, italics:!!opts.italic, size:opts.size||17 })],
+    })],
+  });
+  const bandRow = (text) => new TableRow({ children:[
+    cell(text, {w:COLW.reduce((a,b)=>a+b,0), colSpan:11, bold:true, fill:BAND_FILL, size:19}),
+  ]});
+  const totalsRow = (label, totals, fill) => new TableRow({ children:[
+    cell(label, {w:COLW.slice(0,6).reduce((a,b)=>a+b,0), colSpan:6, bold:true, fill, align:AlignmentType.RIGHT}),
+    ...totals.map((v,ci)=>cell(fmtRuAmount(v), {w:COLW[6+ci], bold:true, fill, align:AlignmentType.RIGHT})),
+  ]});
+
+  const bodyRows = [];
+  sections.forEach(section=>{
+    bodyRows.push(bandRow(section.deptName));
+    let n = 1;
+    section.groups.forEach(g=>{
+      g.rows.forEach((r,ri)=>{
+        const first = ri===0;
+        const cells = [
+          cell(n++, {w:COLW[0], align:AlignmentType.CENTER}),
+          cell(r.obj.name, {w:COLW[1]}),
+        ];
+        if(first){
+          cells.push(
+            cell((g.auditType||'').toLowerCase(), {w:COLW[2], rowSpan:g.rows.length, align:AlignmentType.CENTER}),
+            cell('внутренний государственный аудит', {w:COLW[3], rowSpan:g.rows.length, align:AlignmentType.CENTER}),
+            cell(g.name, {w:COLW[4], rowSpan:g.rows.length}),
+            cell(g.period, {w:COLW[5], rowSpan:g.rows.length, align:AlignmentType.CENTER}),
+          );
+        }
+        r.vals.forEach((v,ci)=>cells.push(cell(v, {w:COLW[6+ci], align:AlignmentType.RIGHT})));
+        cells.push(cell(r.total?fmtRuAmount(r.total):'', {w:COLW[10], bold:true, align:AlignmentType.RIGHT}));
+        bodyRows.push(new TableRow({ children: cells }));
+      });
+      bodyRows.push(totalsRow('Всего по аудиторскому мероприятию:', g.engTotal, TOTAL_FILL));
+    });
+    bodyRows.push(totalsRow(section.isCentral ? 'ВСЕГО по КВГА' : 'Всего по ДВГА:', section.deptTotal, GRANDTOTAL_FILL));
+  });
+
+  const headerRow1 = new TableRow({ tableHeader:true, children:[
+    cell('№ п/п', {w:COLW[0], rowSpan:2, bold:true, align:AlignmentType.CENTER}),
+    cell('Наименование объекта государственного аудита', {w:COLW[1], rowSpan:2, bold:true, align:AlignmentType.CENTER}),
+    cell('Тип аудита', {w:COLW[2], rowSpan:2, bold:true, align:AlignmentType.CENTER}),
+    cell('Вид аудита', {w:COLW[3], rowSpan:2, bold:true, align:AlignmentType.CENTER}),
+    cell('Наименование аудиторского мероприятия', {w:COLW[4], rowSpan:2, bold:true, align:AlignmentType.CENTER}),
+    cell('Срок проведения аудита', {w:COLW[5], rowSpan:2, bold:true, align:AlignmentType.CENTER}),
+    cell('', {w:COLW.slice(6).reduce((a,b)=>a+b,0), colSpan:5}),
+  ]});
+  const headerRow2 = new TableRow({ tableHeader:true, children:[
+    cell(`${years[0]} год`, {w:COLW[6], italic:true, align:AlignmentType.CENTER}),
+    cell(`${years[1]} год`, {w:COLW[7], italic:true, align:AlignmentType.CENTER}),
+    cell(`${years[2]} год`, {w:COLW[8], italic:true, align:AlignmentType.CENTER}),
+    cell(`за истекший период ${Y} года`, {w:COLW[9], italic:true, align:AlignmentType.CENTER}),
+    cell('Всего', {w:COLW[10], bold:true, italic:true, align:AlignmentType.CENTER}),
+  ]});
+  const headerRow3 = new TableRow({ tableHeader:true, children:
+    COLW.map((w,ci)=>cell(ci+1, {w, italic:true, align:AlignmentType.CENTER})),
+  });
+
+  const table = new Table({
+    width: { size: COLW.reduce((a,b)=>a+b,0), type: WidthType.DXA },
+    columnWidths: COLW,
+    layout: TableLayoutType.FIXED,
+    rows: [headerRow1, headerRow2, headerRow3, ...bodyRows],
+  });
+
+  const titlePara = (text, opts={}) => new Paragraph({
+    alignment: opts.align || AlignmentType.CENTER,
+    spacing: { after: opts.after||60 },
+    children: [new TextRun({ text, bold: opts.bold!==false, italics: !!opts.italic, size: opts.size||22 })],
+  });
+
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: {
+          size: { width:11906, height:16838, orientation: PageOrientation.LANDSCAPE }, // портретные размеры A4 — docx разворачивает их сам, orientation обязательно ВНУТРИ size
+          margin: { top:700, bottom:700, left:944, right:944 },
+        },
+      },
+      children: [
+        titlePara('Приложение к приказу председателя', {align:AlignmentType.RIGHT, bold:false, italic:true, size:19, after:20}),
+        titlePara('Комитета внутреннего государственного аудита', {align:AlignmentType.RIGHT, bold:false, italic:true, size:19, after:20}),
+        titlePara('Министерства финансов Республики Казахстан', {align:AlignmentType.RIGHT, bold:false, italic:true, size:19, after:20}),
+        titlePara('«___» __________ ____ г. № ___', {align:AlignmentType.RIGHT, bold:false, italic:true, size:19, after:200}),
+        titlePara('Перечень объектов государственного аудита', {size:24, after:40}),
+        titlePara('ведомства уполномоченного органа по внутреннему государственному аудиту', {size:22, after:40}),
+        titlePara(`и его территориальных подразделений на ${Y} год`, {size:22, after:200}),
+        table,
+      ],
+    }],
+  });
+
+  const blob = await Packer.toBlob(doc);
+  const safeName = (l.name||'perechen').replace(/[«»"]/g,'').replace(/\s+/g,'_');
+  downloadBlob(`perechen_obektov_gosaudita_${Y}_${safeName}.docx`, blob);
 }
 
 /* ---------- ручной ввод наименования мероприятия и срока проведения (для группы департамент × тип аудита) ---------- */
@@ -6562,14 +6772,14 @@ function computeEngagementGroups(item){
   const order = [];
   (item.objects||[]).forEach(o=>{
     const info = engagementInfo(o); // bucket — департамент-получатель (регион либо CENTRAL_BUCKET); nameRegion — регион для названия мероприятия (различает «флагманские» областные группы внутри Комитета)
-    const key = info.bucket + '|' + (info.nameRegion||'') + '|' + info.auditType + '|' + (info.flagship?'1':'0'); // тот же ключ, что и в exportApprovedPerechenOfficial — иначе ручные правки (setEngOverride) разойдутся между экраном и выгрузкой
+    const key = engagementGroupKey(o, info); // тот же ключ, что и в buildOfficialPerechenData — иначе ручные правки (setEngOverride) разойдутся между экраном и выгрузкой
     if(!groups[key]){
       // region — ЭФФЕКТИВНЫЙ департамент-получатель: если «Исполнитель» переопределён вручную (КВГА забрала
       // мероприятие себе или наоборот отдала территориальному ДВГА) — берём override, иначе исходный info.bucket.
       // naturalBucket — всегда исходный, автоматически определённый, нужен только чтобы показать/сбросить override.
       const ov = engOverrideFor(item, key);
       const region = (ov && ov.owner) || info.bucket;
-      groups[key] = { key, region, naturalBucket: info.bucket, nameRegion: info.nameRegion, auditType: info.auditType, objects: [] };
+      groups[key] = { key, region, naturalBucket: info.bucket, nameRegion: info.nameRegion, auditType: info.auditType, quasi: info.quasi, objects: [] };
       order.push(key);
     }
     groups[key].objects.push(o);
@@ -7058,9 +7268,9 @@ function renderDvgaObjectDetailPanel(o){
   if(o.threshA!=null && o.threshB!=null) rows.push(['Порог A / B в группе', `${o.threshA} / ${o.threshB}`]);
   if(o.yearScores) rows.push(['Баллы по годам', `2024 — ${o.yearScores[0]} · 2025 — ${o.yearScores[1]} · 2026 — ${o.yearScores[2]}`]);
   if(o.financing && o.financing.length) rows.push(['Финансирование', o.financing.map(f=>`${f.year}: ${f.amount}`).join(' · ')]);
-  const abpRow = `<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;"><span style="color:var(--text-muted);">Материнский АБП</span>${o.parentAbp
-    ? `<strong>${o.parentAbp.name}</strong> <span class="badge ${o.parentAbp.risk}" style="margin-left:4px;">${riskLabelB[o.parentAbp.risk]}</span>`
-    : '<span style="color:var(--text-muted);">не входит в состав АБП</span>'}</div>`;
+  const abpRow = `<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;"><span style="color:var(--text-muted);">Материнский АБП</span><span style="display:inline-flex;align-items:center;gap:6px;">${o.parentAbp
+    ? `<strong>${o.parentAbp.name}</strong> <span class="badge ${o.parentAbp.risk}">${riskLabelB[o.parentAbp.risk]}</span>`
+    : '<span style="color:var(--text-muted);">не входит в состав АБП</span>'}</span></div>`;
   const infoHtml = `<div style="background:var(--surface-alt);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;">
     ${rows.map(([lbl,val])=>`<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;"><span style="color:var(--text-muted);">${lbl}</span><strong>${val}</strong></div>`).join('')}
     ${abpRow}
@@ -7225,7 +7435,7 @@ function renderGroupDetailBody(){
     const groups = computeEngagementGroups(item);
     const engNamesList = [...new Set(groups.map(g=>{
       const ov0 = engOverrideFor(item, g.key);
-      return (ov0 && ov0.name) || officialEngagementName(g.nameRegion, g.auditType);
+      return (ov0 && ov0.name) || officialEngagementName(g.nameRegion, g.auditType, g.quasi ? g.objects[0].name : null);
     }))];
     const namesListId = `eng-names-${index}`;
     let html = `<datalist id="${namesListId}">${engNamesList.map(n=>`<option value="${escAttr(n)}">`).join('')}</datalist>`;
@@ -7254,7 +7464,7 @@ function renderGroupDetailBody(){
         html += `<div style="font-size:13.5px;font-weight:700;background:var(--surface-alt);border:1px solid var(--border);border-radius:8px;padding:10px 16px;margin:16px 0 10px;">${departmentNameFor(curBucket)}</div>`;
       }
       const ov = engOverrideFor(item, g.key);
-      const nameVal = (ov && ov.name) || officialEngagementName(g.nameRegion, g.auditType);
+      const nameVal = (ov && ov.name) || officialEngagementName(g.nameRegion, g.auditType, g.quasi ? g.objects[0].name : null);
       const periodVal = (ov && ov.period) || officialEngagementPeriod(g.auditType, g.key, itemYear);
       const parsedPeriod = parsePeriodRange(periodVal, itemYear);
       const keyEsc = keyAttr(g.key);
@@ -7346,6 +7556,13 @@ function renderGroupDetailBody(){
   const addBtn = document.getElementById('gd-add-btn');
   const lockedNote = document.getElementById('gd-locked-note');
   const editable = isGroupEditable(item);
+
+  // Word-выгрузка — по официальному шаблону, он есть только у контура Б (см. perechenExportButtons/exportSemiAnnualList).
+  document.getElementById('gd-export-docx-btn').style.display = gdIsB ? 'inline-flex' : 'none';
+  // Кнопка «На согласование/На утверждение/Утвердить» — та же, что и в списке (perechenActionButton), но прямо
+  // на экране состава, чтобы не уходить назад в список только ради смены статуса (см. жалобу «почему я должен
+  // выходить, чтобы отправить на согласование»). Пустая строка для уже утверждённого — кнопка сама пропадает.
+  document.getElementById('gd-send-wrap').innerHTML = perechenActionButton(item, index);
 
   // Контур Б: состав объектов перечня не редактируется с этого экрана вообще (ни в черновике, ни через приказ) —
   // субъекты уже распределены по регионам и согласованы на этапе «Рассмотрение в ДВГА»; здесь меняется только
