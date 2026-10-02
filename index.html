@@ -6539,6 +6539,7 @@ function escAttr(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 }
 function engOverrideFor(item, key){
+  key = keyFromAttr(key);
   return (item.engOverrides && item.engOverrides[key]) || null;
 }
 function computeEngagementGroups(item){
@@ -6601,6 +6602,7 @@ function objTableRow(o, oi, labelFn, showX, removeFn){
   </tr>`;
 }
 function setEngOverride(key, field, value){
+  key = keyFromAttr(key);
   const { index } = currentGroupDetail;
   const item = semiAnnualLists[index];
   if(!item.engOverrides) item.engOverrides = {};
@@ -6608,10 +6610,16 @@ function setEngOverride(key, field, value){
   item.engOverrides[key][field] = value;
 }
 /* ---------- переназначение исполнителя мероприятия (Комитет ↔ территориальный ДВГА) ---------- */
-function engOwnerOptions(){
-  return [{value:CENTRAL_BUCKET, label:CENTRAL_DEPT_NAME}].concat(
-    Object.keys(REGION_DATIVE).map(r=>({value:r, label:departmentNameForRegion(r)}))
-  );
+function engOwnerOptions(g){
+  // Выбор есть только когда у мероприятия ЕСТЬ своя территориальная альтернатива Комитету (g.nameRegion):
+  // Комитет либо забирает её себе, либо оставляет региону. У финотчётности и безрегиональных республиканских
+  // объектов (nameRegion пуст, см. engagementInfo) альтернативы нет вообще — исполнитель всегда Комитет,
+  // выбор тут не нужен и не показывается (поэтому вариантов всегда 2, а не список всех регионов).
+  if(!g.nameRegion) return null;
+  return [
+    {value:CENTRAL_BUCKET, label:CENTRAL_DEPT_NAME},
+    {value:g.nameRegion, label:departmentNameForRegion(g.nameRegion)},
+  ];
 }
 function engOwnerValueAttr(bucket){
   // CENTRAL_BUCKET начинается с символа NUL — небезопасно внутри HTML-атрибута value, поэтому в разметке
@@ -6620,6 +6628,18 @@ function engOwnerValueAttr(bucket){
 }
 function engOwnerFromValueAttr(v){
   return v === '__CENTRAL__' ? CENTRAL_BUCKET : v;
+}
+function keyAttr(key){
+  // Ключ группы (info.bucket+'|'+nameRegion+'|'+auditType) для Комитета начинается с того же NUL-символа,
+  // что и CENTRAL_BUCKET — а HTML-парсер молча заменяет сырой NUL внутри значения атрибута на U+FFFD при
+  // разборе разметки. Из-за этого встроенный в onchange/onclick ключ незаметно переставал совпадать с
+  // реальным g.key, и правки (исполнитель, срок, наименование) у ЛЮБОЙ группы внутри Комитета молча не
+  // сохранялись. Прогоняем ключ через тот же плейсхолдер, что и engOwnerValueAttr, и возвращаем обратно в
+  // keyFromAttr, которую setEngOverride/engOverrideFor/setEngPeriodPart вызывают на входе.
+  return key.split(CENTRAL_BUCKET).join('__CENTRAL__').replace(/'/g,"\\'");
+}
+function keyFromAttr(v){
+  return v.replace(/\\'/g,"'").split('__CENTRAL__').join(CENTRAL_BUCKET);
 }
 /* ---------- срок проведения аудита: пара «с/по» (квартал + год), вместо одного списка 1–4 квартал ---------- */
 function parsePeriodRange(str, fallbackYear){
@@ -6641,6 +6661,7 @@ function formatPeriodRange(fromQ, fromY, toQ, toY){
   return `${fromQ} квартал ${fromY} года - ${toQ} квартал ${toY} года`;
 }
 function setEngPeriodPart(key, which, qyValue){
+  key = keyFromAttr(key);
   const [qStr, yStr] = qyValue.split('|');
   const q = Number(qStr), y = Number(yStr);
   const { index } = currentGroupDetail;
@@ -7221,9 +7242,12 @@ function renderGroupDetailBody(){
       const nameVal = (ov && ov.name) || officialEngagementName(g.nameRegion, g.auditType);
       const periodVal = (ov && ov.period) || officialEngagementPeriod(g.auditType, g.key, itemYear);
       const parsedPeriod = parsePeriodRange(periodVal, itemYear);
-      const keyEsc = g.key.replace(/'/g,"\\'");
+      const keyEsc = keyAttr(g.key);
       const deptLabel = departmentNameFor(g.region) + (g.region===CENTRAL_BUCKET && g.nameRegion ? ` — ${g.nameRegion}` : '');
       const overridden = g.region !== g.naturalBucket;
+      const ownerOpts = engOwnerOptions(g);
+      const canEditOwner = showX && ownerOpts;
+      const roBox = (val) => `<div style="height:34px;display:flex;align-items:center;padding:0 10px;border-radius:7px;background:var(--surface-alt);border:1px solid var(--border);color:var(--text-2);">${escAttr(val)}</div>`;
 
       const engTotals = [0,0,0,0,0];
       const rowsHtml = g.objects.map(o=>{
@@ -7242,28 +7266,34 @@ function renderGroupDetailBody(){
           <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${deptLabel} · объектов: ${g.objects.length}</div>
           <div class="field" style="margin:0 0 10px;">
             <label>Наименование аудиторского мероприятия</label>
-            <input type="text" list="${namesListId}" value="${escAttr(nameVal)}" onchange="setEngOverride('${keyEsc}','name',this.value)" style="width:100%;">
+            ${showX
+              ? `<input type="text" list="${namesListId}" value="${escAttr(nameVal)}" onchange="setEngOverride('${keyEsc}','name',this.value)" style="width:100%;">`
+              : roBox(nameVal)}
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
             <div class="field" style="margin:0;">
-              <label>Тип аудита <span style="font-weight:400;color:var(--text-muted);">(по объекту, автоматически)</span></label>
-              <div style="height:34px;display:flex;align-items:center;padding:0 10px;border-radius:7px;background:var(--surface-alt);border:1px solid var(--border);color:var(--text-2);">${g.auditType}</div>
+              <label>Тип аудита ${showX ? '<span style="font-weight:400;color:var(--text-muted);">(по объекту, автоматически)</span>' : ''}</label>
+              ${roBox(g.auditType)}
             </div>
             <div class="field" style="margin:0;">
-              <label>Исполнитель${overridden ? ` · <a onclick="setEngOverride('${keyEsc}','owner',null);renderGroupDetailBody();" style="cursor:pointer;font-weight:400;">↺ сбросить на автоматический</a>` : ''}</label>
-              <select onchange="setEngOverride('${keyEsc}','owner', engOwnerFromValueAttr(this.value));renderGroupDetailBody();" style="width:100%;">
-                ${engOwnerOptions().map(o=>`<option value="${engOwnerValueAttr(o.value)}" ${o.value===g.region?'selected':''}>${escAttr(o.label)}</option>`).join('')}
-              </select>
+              <label>Исполнитель${(showX && overridden) ? ` · <a onclick="setEngOverride('${keyEsc}','owner',null);renderGroupDetailBody();" style="cursor:pointer;font-weight:400;">↺ сбросить на автоматический</a>` : ''}</label>
+              ${canEditOwner
+                ? `<select onchange="setEngOverride('${keyEsc}','owner', engOwnerFromValueAttr(this.value));renderGroupDetailBody();" style="width:100%;">
+                    ${ownerOpts.map(o=>`<option value="${engOwnerValueAttr(o.value)}" ${o.value===g.region?'selected':''}>${escAttr(o.label)}</option>`).join('')}
+                  </select>`
+                : roBox(departmentNameFor(g.region))}
             </div>
           </div>
           <div class="field" style="margin:0;">
             <label>Срок проведения аудита</label>
+            ${showX ? `
             <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center;">
               ${quarterYearSelect(keyEsc,'from',parsedPeriod.fromQ,parsedPeriod.fromY,itemYear)}
               <span style="color:var(--text-muted);font-size:12px;">—</span>
               ${quarterYearSelect(keyEsc,'to',parsedPeriod.toQ,parsedPeriod.toY,itemYear)}
             </div>
             <div style="margin-top:5px;font-size:11.5px;color:var(--accent);">В документе будет указано: «${periodVal}»</div>
+            ` : roBox(periodVal)}
           </div>
         </div>
         <table>
