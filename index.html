@@ -6396,7 +6396,8 @@ function finReportPeriodLabel(year){
 }
 function officialEngagementPeriod(auditType, seed, year){
   if(isFinReportAudit(auditType)) return finReportPeriodLabel(year);
-  return OFFICIAL_AUDIT_QUARTERS[seedFromName(seed) % 4];
+  const y = Number(year) || CURRENT_YEAR;
+  return `${OFFICIAL_AUDIT_QUARTERS[seedFromName(seed) % 4]} ${y} года`; // всегда с годом — иначе при мероприятиях на стыке лет (см. срок «с/по») непонятно, какой это год
 }
 function parseRuAmount(str){
   if(!str) return 0;
@@ -6440,7 +6441,10 @@ function exportApprovedPerechenOfficial(l){
   const byRegion = {};
   const regionOrder = [];
   l.objects.forEach(o=>{
-    const bucket = engagementInfo(o).bucket; // CENTRAL_BUCKET — для аудита финансовой отчётности, «флагманских» областных аудитов и объектов без определённого региона (см. engagementInfo)
+    const info = engagementInfo(o); // bucket: CENTRAL_BUCKET — для аудита финансовой отчётности, «флагманских» областных аудитов и объектов без определённого региона (см. engagementInfo)
+    const natKey = info.bucket + '|' + (info.nameRegion||'') + '|' + info.auditType;
+    const ov = engOverrideFor(l, natKey);
+    const bucket = (ov && ov.owner) || info.bucket; // «Исполнитель» переопределён вручную — КВГА забрала мероприятие себе или отдала территориальному ДВГА
     if(!byRegion[bucket]){ byRegion[bucket] = []; regionOrder.push(bucket); }
     byRegion[bucket].push(o);
   });
@@ -6463,7 +6467,7 @@ function exportApprovedPerechenOfficial(l){
       const info = engagementInfo(o);
       const auditType = info.auditType;
       const nameRegion = info.nameRegion; // регион для названия мероприятия — у «флагманских» областных групп свой для каждой области, поэтому разные области не сливаются в одну группу
-      const key = region + '|' + (nameRegion||'') + '|' + auditType; // совпадает с ключом группировки в computeEngagementGroups, чтобы ручные правки (setEngOverride) применялись к тем же строкам
+      const key = info.bucket + '|' + (nameRegion||'') + '|' + auditType; // ВСЕГДА исходный (естественный) bucket, не текущий «region» секции — иначе override «Исполнителя» потерял бы связь со своим ключом. Совпадает с ключом группировки в computeEngagementGroups.
       if(!groups[key]){
         const ov = engOverrideFor(l, key);
         groups[key] = {
@@ -6543,7 +6547,15 @@ function computeEngagementGroups(item){
   (item.objects||[]).forEach(o=>{
     const info = engagementInfo(o); // bucket — департамент-получатель (регион либо CENTRAL_BUCKET); nameRegion — регион для названия мероприятия (различает «флагманские» областные группы внутри Комитета)
     const key = info.bucket + '|' + (info.nameRegion||'') + '|' + info.auditType; // тот же ключ, что и в exportApprovedPerechenOfficial — иначе ручные правки (setEngOverride) разойдутся между экраном и выгрузкой
-    if(!groups[key]){ groups[key] = { key, region: info.bucket, nameRegion: info.nameRegion, auditType: info.auditType, objects: [] }; order.push(key); }
+    if(!groups[key]){
+      // region — ЭФФЕКТИВНЫЙ департамент-получатель: если «Исполнитель» переопределён вручную (КВГА забрала
+      // мероприятие себе или наоборот отдала территориальному ДВГА) — берём override, иначе исходный info.bucket.
+      // naturalBucket — всегда исходный, автоматически определённый, нужен только чтобы показать/сбросить override.
+      const ov = engOverrideFor(item, key);
+      const region = (ov && ov.owner) || info.bucket;
+      groups[key] = { key, region, naturalBucket: info.bucket, nameRegion: info.nameRegion, auditType: info.auditType, objects: [] };
+      order.push(key);
+    }
     groups[key].objects.push(o);
   });
   order.sort((ka,kb)=>{
@@ -6594,6 +6606,87 @@ function setEngOverride(key, field, value){
   if(!item.engOverrides) item.engOverrides = {};
   if(!item.engOverrides[key]) item.engOverrides[key] = {};
   item.engOverrides[key][field] = value;
+}
+/* ---------- переназначение исполнителя мероприятия (Комитет ↔ территориальный ДВГА) ---------- */
+function engOwnerOptions(){
+  return [{value:CENTRAL_BUCKET, label:CENTRAL_DEPT_NAME}].concat(
+    Object.keys(REGION_DATIVE).map(r=>({value:r, label:departmentNameForRegion(r)}))
+  );
+}
+function engOwnerValueAttr(bucket){
+  // CENTRAL_BUCKET начинается с символа NUL — небезопасно внутри HTML-атрибута value, поэтому в разметке
+  // используем отдельный плейсхолдер и разворачиваем его обратно в engOwnerFromValueAttr при чтении.
+  return bucket === CENTRAL_BUCKET ? '__CENTRAL__' : bucket;
+}
+function engOwnerFromValueAttr(v){
+  return v === '__CENTRAL__' ? CENTRAL_BUCKET : v;
+}
+/* ---------- срок проведения аудита: пара «с/по» (квартал + год), вместо одного списка 1–4 квартал ---------- */
+function parsePeriodRange(str, fallbackYear){
+  // Разбирает «N квартал», «N квартал ГГГГ года» и «N квартал ГГГГ года - M квартал ГГГГ года» (старый формат
+  // без года — тоже) в {fromQ,fromY,toQ,toY}, чтобы предзаполнить два select'а «с»/«по».
+  const re = /(\d)\s*квартал(?:\s+(\d{4})\s*года)?/gi;
+  const matches = [...String(str||'').matchAll(re)];
+  if(matches.length>=2){
+    return { fromQ:+matches[0][1], fromY:+(matches[0][2]||fallbackYear), toQ:+matches[1][1], toY:+(matches[1][2]||fallbackYear) };
+  }
+  if(matches.length===1){
+    const q = +matches[0][1], y = +(matches[0][2]||fallbackYear);
+    return { fromQ:q, fromY:y, toQ:q, toY:y };
+  }
+  return { fromQ:1, fromY:fallbackYear, toQ:1, toY:fallbackYear };
+}
+function formatPeriodRange(fromQ, fromY, toQ, toY){
+  if(fromQ===toQ && fromY===toY) return `${fromQ} квартал ${fromY} года`;
+  return `${fromQ} квартал ${fromY} года - ${toQ} квартал ${toY} года`;
+}
+function setEngPeriodPart(key, which, qyValue){
+  const [qStr, yStr] = qyValue.split('|');
+  const q = Number(qStr), y = Number(yStr);
+  const { index } = currentGroupDetail;
+  const item = semiAnnualLists[index];
+  const itemYear = Number(item.year) || CURRENT_YEAR;
+  const auditType = key.split('|')[2];
+  const ov = engOverrideFor(item, key);
+  const curPeriod = (ov && ov.period) || officialEngagementPeriod(auditType, key, itemYear);
+  const parsed = parsePeriodRange(curPeriod, itemYear);
+  if(which==='from'){ parsed.fromQ=q; parsed.fromY=y; } else { parsed.toQ=q; parsed.toY=y; }
+  setEngOverride(key, 'period', formatPeriodRange(parsed.fromQ, parsed.fromY, parsed.toQ, parsed.toY));
+  renderGroupDetailBody();
+}
+function quarterYearSelect(key, which, curQ, curY, itemYear){
+  const years = [itemYear, itemYear+1];
+  const opts = years.map(y => [1,2,3,4].map(q =>
+    `<option value="${q}|${y}" ${q===curQ && y===curY ? 'selected' : ''}>${q} квартал ${y}</option>`
+  ).join('')).join('');
+  return `<select onchange="setEngPeriodPart('${key}','${which}',this.value)" style="width:100%;">${opts}</select>`;
+}
+/* ---------- колонки «Состава» по образцу официального перечня: №, объект, 4 года финансирования, Всего ---------- */
+function perechenObjTableHead(years, Y, showX){
+  return `<thead><tr>
+    <th style="width:34px;">№</th><th>Наименование объекта государственного аудита</th>
+    <th style="width:92px;text-align:right;">${years[0]} год</th>
+    <th style="width:92px;text-align:right;">${years[1]} год</th>
+    <th style="width:92px;text-align:right;">${years[2]} год</th>
+    <th style="width:140px;text-align:right;">за истекший период ${Y} года</th>
+    <th style="width:100px;text-align:right;">Всего</th>${showX ? '<th style="width:40px;"></th>' : ''}
+  </tr></thead>`;
+}
+function perechenObjTableRow(o, displayN, years, Y, showX, removeIdx){
+  const vals = years.concat([Y]).map(y=>officialAmountForYear(o, y));
+  const nums = vals.map(parseRuAmount);
+  const total = nums.reduce((a,b)=>a+b,0);
+  const html = `<tr>
+    <td style="color:var(--text-muted);">${displayN}</td>
+    <td><strong>${o.name}</strong></td>
+    <td class="mono" style="text-align:right;">${vals[0]||'—'}</td>
+    <td class="mono" style="text-align:right;">${vals[1]||'—'}</td>
+    <td class="mono" style="text-align:right;">${vals[2]||'—'}</td>
+    <td class="mono" style="text-align:right;">${vals[3]||'—'}</td>
+    <td class="mono" style="text-align:right;font-weight:600;">${total ? fmtRuAmount(total) : '—'}</td>
+    ${showX ? `<td><button class="btn" style="height:26px;padding:0 8px;font-size:11.5px;" onclick="removeFromGroup(${removeIdx})" title="Убрать из состава"><i class="ti ti-x"></i></button></td>` : ''}
+  </tr>`;
+  return { html, nums, total };
 }
 
 /* ---------- рассмотрение результатов СУР территориальными ДВГА по регионам ---------- */
@@ -7085,39 +7178,112 @@ function renderGroupDetailBody(){
   const colCount = 11 + (showX ? 1 : 0);
 
   if(item.contour === 'b' && item.objects && item.objects.length){
-    // Контур Б: состав разбит по аудиторским мероприятиям (департамент × тип аудита) — наименование
-    // и срок редактируются прямо над своей группой объектов, а не в отдельном блоке внизу экрана.
+    // Контур Б: состав разбит по аудиторским мероприятиям (департамент × тип аудита). Наименование, исполнитель
+    // и срок редактируются прямо над своей группой объектов. Разделы «Комитет»/«ДВГА по региону», итоги по
+    // мероприятию и по департаменту показаны так же, как в официальном перечне и его Excel-выгрузке —
+    // см. exportApprovedPerechenOfficial, откуда взяты те же суммы (officialAmountForYear) и тот же порядок
+    // групп (computeEngagementGroups), чтобы экран и выгрузка никогда не расходились. Это относится и к уже
+    // утверждённым перечням — вид не меняется по статусу, то, что видно на экране, и есть то, что выгружается.
     const itemYear = Number(item.year) || CURRENT_YEAR;
-    const periodOptions = OFFICIAL_AUDIT_QUARTERS.concat([finReportPeriodLabel(itemYear)]);
+    const years = [itemYear-3, itemYear-2, itemYear-1];
     const groups = computeEngagementGroups(item);
-    document.getElementById('gd-objects').innerHTML = groups.map(g=>{
+    const engNamesList = [...new Set(groups.map(g=>{
+      const ov0 = engOverrideFor(item, g.key);
+      return (ov0 && ov0.name) || officialEngagementName(g.nameRegion, g.auditType);
+    }))];
+    const namesListId = `eng-names-${index}`;
+    let html = `<datalist id="${namesListId}">${engNamesList.map(n=>`<option value="${escAttr(n)}">`).join('')}</datalist>`;
+    let curBucket = null, bucketIsCentral = false, bucketN = 1;
+    let bucketTotals = [0,0,0,0,0];
+    const flushBucket = () => {
+      if(curBucket === null) return;
+      const cells = bucketTotals.map(v=>fmtRuAmount(v)||'—');
+      html += `<table style="margin-bottom:16px;"><tbody><tr>
+        <td style="background:var(--direct-bg);color:var(--direct-text);font-weight:700;padding:10px 14px;">${bucketIsCentral ? 'ВСЕГО по КВГА' : 'Всего по ДВГА:'}</td>
+        <td style="width:92px;text-align:right;background:var(--direct-bg);color:var(--direct-text);font-weight:700;padding:10px 14px;">${cells[0]}</td>
+        <td style="width:92px;text-align:right;background:var(--direct-bg);color:var(--direct-text);font-weight:700;padding:10px 14px;">${cells[1]}</td>
+        <td style="width:92px;text-align:right;background:var(--direct-bg);color:var(--direct-text);font-weight:700;padding:10px 14px;">${cells[2]}</td>
+        <td style="width:140px;text-align:right;background:var(--direct-bg);color:var(--direct-text);font-weight:700;padding:10px 14px;">${cells[3]}</td>
+        <td style="width:100px;text-align:right;background:var(--direct-bg);color:var(--direct-text);font-weight:700;padding:10px 14px;">${cells[4]}</td>
+        ${showX ? '<td style="width:40px;background:var(--direct-bg);"></td>' : ''}
+      </tr></tbody></table>`;
+    };
+    groups.forEach(g=>{
+      if(g.region !== curBucket){
+        flushBucket();
+        curBucket = g.region;
+        bucketIsCentral = curBucket === CENTRAL_BUCKET;
+        bucketN = 1;
+        bucketTotals = [0,0,0,0,0];
+        html += `<div style="font-size:13.5px;font-weight:700;background:var(--surface-alt);border:1px solid var(--border);border-radius:8px;padding:10px 16px;margin:16px 0 10px;">${departmentNameFor(curBucket)}</div>`;
+      }
       const ov = engOverrideFor(item, g.key);
       const nameVal = (ov && ov.name) || officialEngagementName(g.nameRegion, g.auditType);
       const periodVal = (ov && ov.period) || officialEngagementPeriod(g.auditType, g.key, itemYear);
+      const parsedPeriod = parsePeriodRange(periodVal, itemYear);
       const keyEsc = g.key.replace(/'/g,"\\'");
-      const rowsHtml = g.objects.map(o => objTableRow(o, item.objects.indexOf(o), labelFn, showX)).join('');
       const deptLabel = departmentNameFor(g.region) + (g.region===CENTRAL_BUCKET && g.nameRegion ? ` — ${g.nameRegion}` : '');
-      return `
+      const overridden = g.region !== g.naturalBucket;
+
+      const engTotals = [0,0,0,0,0];
+      const rowsHtml = g.objects.map(o=>{
+        const oi = item.objects.indexOf(o);
+        const r = perechenObjTableRow(o, bucketN++, years, itemYear, showX, oi);
+        for(let vi=0; vi<4; vi++) engTotals[vi] += r.nums[vi];
+        engTotals[4] += r.total;
+        return r.html;
+      }).join('');
+      for(let vi=0; vi<5; vi++) bucketTotals[vi] += engTotals[vi];
+      const engCells = engTotals.map(v=>fmtRuAmount(v)||'—');
+
+      html += `
       <div class="card" style="overflow-x:auto;margin-bottom:12px;padding:0;">
         <div style="padding:12px 14px 10px;border-bottom:1px solid var(--border);">
-          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${deptLabel} · ${(g.auditType||'').toLowerCase()} · объектов: ${g.objects.length}</div>
-          <div style="display:grid;grid-template-columns:1fr 240px;gap:10px;">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${deptLabel} · объектов: ${g.objects.length}</div>
+          <div class="field" style="margin:0 0 10px;">
+            <label>Наименование аудиторского мероприятия</label>
+            <input type="text" list="${namesListId}" value="${escAttr(nameVal)}" onchange="setEngOverride('${keyEsc}','name',this.value)" style="width:100%;">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
             <div class="field" style="margin:0;">
-              <label>Наименование аудиторского мероприятия</label>
-              <input type="text" value="${escAttr(nameVal)}" onchange="setEngOverride('${keyEsc}','name',this.value)" style="width:100%;">
+              <label>Тип аудита <span style="font-weight:400;color:var(--text-muted);">(по объекту, автоматически)</span></label>
+              <div style="height:34px;display:flex;align-items:center;padding:0 10px;border-radius:7px;background:var(--surface-alt);border:1px solid var(--border);color:var(--text-2);">${g.auditType}</div>
             </div>
             <div class="field" style="margin:0;">
-              <label>Срок проведения аудита</label>
-              <select onchange="setEngOverride('${keyEsc}','period',this.value)" style="width:100%;">${periodOptions.map(q=>`<option ${q===periodVal?'selected':''}>${escAttr(q)}</option>`).join('')}</select>
+              <label>Исполнитель${overridden ? ` · <a onclick="setEngOverride('${keyEsc}','owner',null);renderGroupDetailBody();" style="cursor:pointer;font-weight:400;">↺ сбросить на автоматический</a>` : ''}</label>
+              <select onchange="setEngOverride('${keyEsc}','owner', engOwnerFromValueAttr(this.value));renderGroupDetailBody();" style="width:100%;">
+                ${engOwnerOptions().map(o=>`<option value="${engOwnerValueAttr(o.value)}" ${o.value===g.region?'selected':''}>${escAttr(o.label)}</option>`).join('')}
+              </select>
             </div>
+          </div>
+          <div class="field" style="margin:0;">
+            <label>Срок проведения аудита</label>
+            <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center;">
+              ${quarterYearSelect(keyEsc,'from',parsedPeriod.fromQ,parsedPeriod.fromY,itemYear)}
+              <span style="color:var(--text-muted);font-size:12px;">—</span>
+              ${quarterYearSelect(keyEsc,'to',parsedPeriod.toQ,parsedPeriod.toY,itemYear)}
+            </div>
+            <div style="margin-top:5px;font-size:11.5px;color:var(--accent);">В документе будет указано: «${periodVal}»</div>
           </div>
         </div>
         <table>
-          ${objTableHead(showX)}
-          <tbody>${rowsHtml}</tbody>
+          ${perechenObjTableHead(years, itemYear, showX)}
+          <tbody>${rowsHtml}
+            <tr>
+              <td colspan="2" style="background:var(--accent-bg);color:var(--accent);font-weight:600;padding:9px 12px;">Всего по аудиторскому мероприятию:</td>
+              <td style="text-align:right;background:var(--accent-bg);color:var(--accent);font-weight:600;padding:9px 12px;">${engCells[0]}</td>
+              <td style="text-align:right;background:var(--accent-bg);color:var(--accent);font-weight:600;padding:9px 12px;">${engCells[1]}</td>
+              <td style="text-align:right;background:var(--accent-bg);color:var(--accent);font-weight:600;padding:9px 12px;">${engCells[2]}</td>
+              <td style="text-align:right;background:var(--accent-bg);color:var(--accent);font-weight:600;padding:9px 12px;">${engCells[3]}</td>
+              <td style="text-align:right;background:var(--accent-bg);color:var(--accent);font-weight:600;padding:9px 12px;">${engCells[4]}</td>
+              ${showX ? '<td style="background:var(--accent-bg);"></td>' : ''}
+            </tr>
+          </tbody>
         </table>
       </div>`;
-    }).join('');
+    });
+    flushBucket();
+    document.getElementById('gd-objects').innerHTML = html;
   } else {
     const objRows = (item.objects && item.objects.length)
       ? item.objects.map((o,oi)=>objTableRow(o, oi, labelFn, showX)).join('')
