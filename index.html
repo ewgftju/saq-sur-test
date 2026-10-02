@@ -5589,10 +5589,10 @@ function openDetail(type, i){
     document.querySelectorAll('#abp-ind-year-switch button').forEach(b=>b.classList.toggle('active', b.textContent==='2024'));
     renderAbpIndicatorsTable(o.code, '2024');
     document.getElementById('d-crit-title').textContent = 'Государственные учреждения в составе АБП';
-    const abpSummaryHtml = `<div style="background:var(--surface-alt);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12.5px;">
-        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;"><span style="color:var(--text-muted);">Тип аудита</span><strong>${o.auditType}</strong></div>
-        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;"><span style="color:var(--text-muted);">Последняя проверка</span><strong>${o.lastInspection.date} · ${o.lastInspection.type}</strong></div>
-        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;"><span style="color:var(--text-muted);">Финансирование, млн ₸ (2024 / 2025 / 2026 / итого)</span><strong>${abpFinByYear(o,'2024')} / ${abpFinByYear(o,'2025')} / ${abpFinByYear(o,'2026')} / ${abpTotalFin(o)}</strong></div>
+    const abpSummaryHtml = `<div style="background:var(--surface-alt);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12.5px;display:grid;grid-template-columns:max-content 1fr;column-gap:14px;row-gap:6px;align-items:baseline;">
+        <span style="color:var(--text-muted);">Тип аудита</span><strong>${o.auditType}</strong>
+        <span style="color:var(--text-muted);">Последняя проверка</span><strong>${o.lastInspection.date} · ${o.lastInspection.type}</strong>
+        <span style="color:var(--text-muted);">Финансирование, млн ₸ (2024 / 2025 / 2026 / итого)</span><strong>${abpFinByYear(o,'2024')} / ${abpFinByYear(o,'2025')} / ${abpFinByYear(o,'2026')} / ${abpTotalFin(o)}</strong>
       </div>`;
     document.getElementById('d-crit').innerHTML = abpSummaryHtml + `<div class="card"><table>
       <thead><tr><th>Государственное учреждение</th><th style="width:130px;">Балл</th><th style="width:40px;"></th></tr></thead>
@@ -7268,11 +7268,15 @@ function renderDvgaObjectDetailPanel(o){
   if(o.threshA!=null && o.threshB!=null) rows.push(['Порог A / B в группе', `${o.threshA} / ${o.threshB}`]);
   if(o.yearScores) rows.push(['Баллы по годам', `2024 — ${o.yearScores[0]} · 2025 — ${o.yearScores[1]} · 2026 — ${o.yearScores[2]}`]);
   if(o.financing && o.financing.length) rows.push(['Финансирование', o.financing.map(f=>`${f.year}: ${f.amount}`).join(' · ')]);
-  const abpRow = `<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;"><span style="color:var(--text-muted);">Материнский АБП</span><span style="display:inline-flex;align-items:center;gap:6px;">${o.parentAbp
+  const abpRow = `<span style="color:var(--text-muted);">Материнский АБП</span><span style="display:inline-flex;align-items:center;gap:6px;">${o.parentAbp
     ? `<strong>${o.parentAbp.name}</strong> <span class="badge ${o.parentAbp.risk}">${riskLabelB[o.parentAbp.risk]}</span>`
-    : '<span style="color:var(--text-muted);">не входит в состав АБП</span>'}</span></div>`;
-  const infoHtml = `<div style="background:var(--surface-alt);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;">
-    ${rows.map(([lbl,val])=>`<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;"><span style="color:var(--text-muted);">${lbl}</span><strong>${val}</strong></div>`).join('')}
+    : '<span style="color:var(--text-muted);">не входит в состав АБП</span>'}</span>`;
+  // Сетка «подпись — значение» в одну grid-колонку на все строки сразу (а не отдельный flex space-between
+  // на каждую строку): ширина колонки подписи подстраивается под самую длинную подпись В ЭТОЙ ЖЕ карточке,
+  // а не растягивается на всю ширину карточки — значение начинается сразу за подписью, без «пятиметрового»
+  // разрыва на коротких строках вроде «Отчётный год» / «2026».
+  const infoHtml = `<div style="background:var(--surface-alt);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px;display:grid;grid-template-columns:max-content 1fr;column-gap:14px;row-gap:6px;align-items:baseline;">
+    ${rows.map(([lbl,val])=>`<span style="color:var(--text-muted);">${lbl}</span><strong>${val}</strong>`).join('')}
     ${abpRow}
   </div>`;
   return `<div class="section-title" style="margin-top:0;">Полная информация по объекту</div>${infoHtml}<div class="section-title">Сработавшие критерии</div>${renderDvgaCritTable(o.crit, o.year)}`;
