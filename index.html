@@ -6373,7 +6373,7 @@ function isFinReportAudit(auditType){ return /финансов\S*\s+отч/i.tes
    «Флагманский» аудит соответствия ОБЛАСТНОГО уровня (Аппарат акима и областные управления/отделы целиком,
    ОДНИМ мероприятием на область) — это ОБЫЧНЫЙ региональный объект, стартует у своей территориальной ДВГА,
    как и любой другой; в Комитет он попадает только если «Исполнитель» переназначен вручную (КВГА забрала
-   его себе — см. engOwnerOptions/setEngOverride). isOblastLevelBody здесь влияет только на группировку —
+   его себе — см. engOwnerOptions/setObjOverride). isOblastLevelBody здесь влияет только на группировку —
    не сливать такой областной аудит с районными/городскими объектами того же региона в одно мероприятие. */
 const CENTRAL_BUCKET = '\u0000CENTRAL';
 const CENTRAL_DEPT_NAME = 'Комитет внутреннего государственного аудита МФ РК';
@@ -6493,9 +6493,8 @@ function buildOfficialPerechenData(l){
   const regionOrder = [];
   l.objects.forEach((o, oi)=>{
     const info = engagementInfo(o); // bucket: CENTRAL_BUCKET — для финотчётности АБП, «флагманских» областных аудитов и объектов без определённого региона (см. engagementInfo)
-    const natKey = engagementGroupKey(o, info);
-    const ov = engOverrideFor(l, natKey);
-    const bucket = (ov && ov.owner) || info.bucket; // «Исполнитель» переопределён вручную — КВГА забрала мероприятие себе или отдала территориальному ДВГА
+    const objOv = objOverrideFor(l, oi);
+    const bucket = (objOv && objOv.owner) || info.bucket; // «Исполнитель» переопределён вручную НА ЭТОМ ОБЪЕКТЕ — КВГА забрала именно его мероприятие себе или отдала территориальному ДВГА
     if(!byRegion[bucket]){ byRegion[bucket] = []; regionOrder.push(bucket); }
     byRegion[bucket].push({o, oi});
   });
@@ -6515,7 +6514,7 @@ function buildOfficialPerechenData(l){
       const info = engagementInfo(o);
       const auditType = info.auditType;
       const nameRegion = info.nameRegion; // регион для названия мероприятия — у «флагманских» областных групп свой для каждой области, поэтому разные области не сливаются в одну группу
-      const natKey = engagementGroupKey(o, info); // ВСЕГДА исходный (естественный) ключ — для Исполнителя и для расчёта значений по умолчанию (см. objEffectiveNamePeriod)
+      const natKey = engagementGroupKey(o, info); // исходный (естественный) ключ — для расчёта значений по умолчанию (см. objEffectiveNamePeriod)
       // Группируем по ФАКТИЧЕСКОМУ результату (исполнитель уже учтён выше через bucket; тут — наименование+срок
       // каждого объекта, см. objOverrideFor/computeEngagementGroups) — тот же принцип, что и на экране, чтобы
       // документ и экран показывали одинаковые мероприятия.
@@ -6753,22 +6752,19 @@ async function exportApprovedPerechenOfficialDocx(l){
   downloadBlob(`perechen_obektov_gosaudita_${Y}_${safeName}.docx`, blob);
 }
 
-/* ---------- ручной ввод наименования мероприятия и срока проведения (для группы департамент × тип аудита) ---------- */
+/* ---------- ручной ввод наименования мероприятия, срока проведения И исполнителя — отдельно НА КАЖДЫЙ ОБЪЕКТ ----------
+   Исполнитель, наименование и срок — ПОЛЕ У КАЖДОГО ОБЪЕКТА отдельно: пользователь редактирует их по одному
+   объекту за раз (см. renderGroupDetailEditableHtml), а итоговая группировка по мероприятиям
+   (renderGroupDetailReadonlyHtml, выгрузки) считается ПОСЛЕ — объекты с совпавшими (исполнитель, наименование,
+   срок) схлопываются в одно мероприятие, с разными — остаются отдельными строками. Если ничего не
+   редактировать, у объектов одного региона/типа аудита совпадают и значения по умолчанию — поэтому без правок
+   всё выглядит как раньше, одним мероприятием.
+   Раньше исполнитель был правкой на уровне целой естественной группы (натурального ключа) — единое массовое
+   решение «забрать весь регион». Это не совпадало с тем же принципом, который уже применён к наименованию и
+   сроку: пользователь явно попросил исполнителя тоже независимо по каждому объекту, без группового действия. */
 function escAttr(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 }
-function engOverrideFor(item, key){
-  key = keyFromAttr(key);
-  return (item.engOverrides && item.engOverrides[key]) || null;
-}
-/* ---------- наименование мероприятия и срок — отдельно НА КАЖДЫЙ ОБЪЕКТ (а не на готовую группу) ----------
-   Исполнитель («Комитет забрал») остаётся правкой на уровне естественной группы (натурального ключа) — это
-   массовое решение «забрать весь регион/тип аудита», как и было. А вот наименование и срок — ПОЛЕ У КАЖДОГО
-   ОБЪЕКТА отдельно: пользователь редактирует их по одному объекту за раз (см. renderGroupDetailEditableHtml),
-   а итоговая группировка по мероприятиям (renderGroupDetailReadonlyHtml, выгрузки) считается ПОСЛЕ — объекты
-   с совпавшими (исполнитель, наименование, срок) схлопываются в одно мероприятие, с разными — остаются
-   отдельными строками. Если ничего не редактировать, у объектов одного региона/типа аудита совпадают и
-   значения по умолчанию — поэтому без правок всё выглядит как раньше, одним мероприятием. */
 function objOverrideFor(item, oi){
   return (item.objOverrides && item.objOverrides[oi]) || null;
 }
@@ -6803,28 +6799,29 @@ function quarterYearSelectObj(oi, which, curQ, curY, itemYear){
   return `<select onchange="setObjPeriodPart(${oi},'${which}',this.value)" style="width:100%;font-size:12.5px;height:30px;">${opts}</select>`;
 }
 function objEffectiveNamePeriod(item, o, oi, info, natKey, itemYear){
-  // ЕДИНАЯ функция эффективных (имя, срок) объекта — используется и экраном (обе функции группировки ниже),
-  // и выгрузкой (buildOfficialPerechenData), чтобы «после Готово группируются» выглядело одинаково и на
-  // экране, и в Excel/Word.
+  // ЕДИНАЯ функция эффективных (исполнитель, имя, срок) объекта — используется и экраном (обе функции
+  // группировки ниже), и выгрузкой (buildOfficialPerechenData), чтобы «после Готово группируются» выглядело
+  // одинаково и на экране, и в Excel/Word.
   const ov = objOverrideFor(item, oi);
   const name = (ov && ov.name) || officialEngagementName(info.nameRegion, info.auditType, info.quasi ? o.name : null);
   const period = (ov && ov.period) || officialEngagementPeriod(info.auditType, natKey, itemYear);
-  return { name, period };
+  const owner = (ov && ov.owner) || info.bucket;
+  return { name, period, owner };
 }
 function computeNaturalGroups(item){
-  // Чисто автоматическая классификация (регион/тип аудита/флагман/КвазиГос), БЕЗ учёта наименования и срока —
-  // определяет только департамент-секции и область действия Исполнителя. Используется экраном РЕДАКТИРОВАНИЯ
-  // (renderGroupDetailEditableHtml): внутри одной такой группы объекты показываются плоским списком, каждый
-  // ос своим собственным полем наименования/срока.
+  // Чисто автоматическая классификация (регион/тип аудита/флагман/КвазиГос), БЕЗ учёта наименования, срока и
+  // исполнителя — определяет только департамент-секции для экрана РЕДАКТИРОВАНИЯ (renderGroupDetailEditableHtml):
+  // внутри одной такой группы объекты показываются плоским списком, каждый со своими собственными полями
+  // наименования/срока/исполнителя. Карточка и её банер остаются на месте, даже если у кого-то из объектов
+  // внутри исполнитель переопределён — это видно и правится у каждого объекта отдельно, группа как таковая не
+  // «переезжает» целиком (фактическая перегруппировка по исполнителю — только в computeEngagementGroups, после «Готово»).
   const groups = {};
   const order = [];
   (item.objects||[]).forEach((o, oi)=>{
     const info = engagementInfo(o);
     const key = engagementGroupKey(o, info);
     if(!groups[key]){
-      const ov = engOverrideFor(item, key);
-      const region = (ov && ov.owner) || info.bucket;
-      groups[key] = { key, region, naturalBucket: info.bucket, nameRegion: info.nameRegion, auditType: info.auditType, quasi: info.quasi, objects: [], objIdx: [] };
+      groups[key] = { key, region: info.bucket, nameRegion: info.nameRegion, auditType: info.auditType, quasi: info.quasi, objects: [], objIdx: [] };
       order.push(key);
     }
     groups[key].objects.push(o);
@@ -6850,21 +6847,20 @@ function computeNaturalGroups(item){
 function computeEngagementGroups(item){
   // Группировка ПО ФАКТИЧЕСКОМУ результату — исполнитель + наименование + срок КАЖДОГО объекта (см.
   // objEffectiveNamePeriod). Объекты с одинаковым результатом попадают в одно мероприятие, с разным —
-  // в разные, даже если формально относятся к одной и той же естественной группе (computeNaturalGroups).
-  // Используется и экраном в режиме просмотра (renderGroupDetailReadonlyHtml), и выгрузкой
-  // (buildOfficialPerechenData) — те же входные функции, тот же порядок, чтобы экран и документ не расходились.
+  // в разные, даже если формально относятся к одной и той же естественной группе (computeNaturalGroups) —
+  // в т.ч. когда отличается только исполнитель. Используется и экраном в режиме просмотра
+  // (renderGroupDetailReadonlyHtml), и выгрузкой (buildOfficialPerechenData) — те же входные функции, тот же
+  // порядок, чтобы экран и документ не расходились.
   const itemYear = Number(item.year) || CURRENT_YEAR;
   const groups = {};
   const order = [];
   (item.objects||[]).forEach((o, oi)=>{
     const info = engagementInfo(o);
     const natKey = engagementGroupKey(o, info);
-    const { name, period } = objEffectiveNamePeriod(item, o, oi, info, natKey, itemYear);
-    const subKey = natKey + '\u0001' + name + '\u0001' + period; // natKey уже включает |Q:бин для КвазиГос — такие субъекты и тут не сольются
+    const { name, period, owner } = objEffectiveNamePeriod(item, o, oi, info, natKey, itemYear);
+    const subKey = natKey + '\u0001' + owner + '\u0001' + name + '\u0001' + period; // natKey уже включает |Q:бин для КвазиГос — такие субъекты и тут не сольются
     if(!groups[subKey]){
-      const ov = engOverrideFor(item, natKey);
-      const region = (ov && ov.owner) || info.bucket;
-      groups[subKey] = { key: subKey, natKey, region, naturalBucket: info.bucket, nameRegion: info.nameRegion, auditType: info.auditType, quasi: info.quasi, name, period, objects: [] };
+      groups[subKey] = { key: subKey, natKey, region: owner, nameRegion: info.nameRegion, auditType: info.auditType, quasi: info.quasi, name, period, objects: [] };
       order.push(subKey);
     }
     groups[subKey].objects.push(o);
@@ -6911,24 +6907,16 @@ function objTableRow(o, oi, labelFn, showX, removeFn){
     ${showX ? `<td><button class="btn" style="height:26px;padding:0 8px;font-size:11.5px;" onclick="${removeFn||'removeFromGroup'}(${oi})" title="Убрать из состава"><i class="ti ti-x"></i></button></td>` : ''}
   </tr>`;
 }
-function setEngOverride(key, field, value){
-  key = keyFromAttr(key);
-  const { index } = currentGroupDetail;
-  const item = semiAnnualLists[index];
-  if(!item.engOverrides) item.engOverrides = {};
-  if(!item.engOverrides[key]) item.engOverrides[key] = {};
-  item.engOverrides[key][field] = value;
-}
-/* ---------- переназначение исполнителя мероприятия (Комитет ↔ территориальный ДВГА) ---------- */
-function engOwnerOptions(g){
-  // Выбор есть только когда у мероприятия ЕСТЬ своя территориальная альтернатива Комитету (g.nameRegion):
-  // Комитет либо забирает её себе, либо оставляет региону. У финотчётности и безрегиональных республиканских
+/* ---------- переназначение исполнителя мероприятия (Комитет ↔ территориальный ДВГА), НА КАЖДЫЙ ОБЪЕКТ ---------- */
+function engOwnerOptions(nameRegion){
+  // Выбор есть только когда у объекта ЕСТЬ своя территориальная альтернатива Комитету (nameRegion): Комитет
+  // либо забирает его себе, либо оставляет региону. У финотчётности и безрегиональных республиканских
   // объектов (nameRegion пуст, см. engagementInfo) альтернативы нет вообще — исполнитель всегда Комитет,
   // выбор тут не нужен и не показывается (поэтому вариантов всегда 2, а не список всех регионов).
-  if(!g.nameRegion) return null;
+  if(!nameRegion) return null;
   return [
     {value:CENTRAL_BUCKET, label:CENTRAL_DEPT_NAME},
-    {value:g.nameRegion, label:departmentNameForRegion(g.nameRegion)},
+    {value:nameRegion, label:departmentNameForRegion(nameRegion)},
   ];
 }
 function engOwnerValueAttr(bucket){
@@ -6938,18 +6926,6 @@ function engOwnerValueAttr(bucket){
 }
 function engOwnerFromValueAttr(v){
   return v === '__CENTRAL__' ? CENTRAL_BUCKET : v;
-}
-function keyAttr(key){
-  // Ключ группы (info.bucket+'|'+nameRegion+'|'+auditType) для Комитета начинается с того же NUL-символа,
-  // что и CENTRAL_BUCKET — а HTML-парсер молча заменяет сырой NUL внутри значения атрибута на U+FFFD при
-  // разборе разметки. Из-за этого встроенный в onchange/onclick ключ незаметно переставал совпадать с
-  // реальным g.key, и правки (исполнитель, срок, наименование) у ЛЮБОЙ группы внутри Комитета молча не
-  // сохранялись. Прогоняем ключ через тот же плейсхолдер, что и engOwnerValueAttr, и возвращаем обратно в
-  // keyFromAttr, которую setEngOverride/engOverrideFor/setEngPeriodPart вызывают на входе.
-  return key.split(CENTRAL_BUCKET).join('__CENTRAL__').replace(/'/g,"\\'");
-}
-function keyFromAttr(v){
-  return v.replace(/\\'/g,"'").split('__CENTRAL__').join(CENTRAL_BUCKET);
 }
 /* ---------- срок проведения аудита: пара «с/по» (квартал + год), вместо одного списка 1–4 квартал ---------- */
 function parsePeriodRange(str, fallbackYear){
@@ -7429,7 +7405,7 @@ function mergeReturnedIntoDraft(){
     b.merged = true;
   });
   const list = {
-    name: `Проект перечня — ${CURRENT_YEAR}`,
+    name: `${CURRENT_YEAR} год`,
     period: `${CURRENT_YEAR} год`,
     year: String(CURRENT_YEAR),
     count: keptObjects.length,
@@ -7571,9 +7547,11 @@ function renderGroupDetailReadonlyHtml(item, itemYear, years){
 }
 function renderGroupDetailEditableHtml(item, itemYear, years, namesListId){
   // Режим редактирования — ПЛОСКИЙ список объектов внутри каждой естественной группы (computeNaturalGroups):
-  // «Исполнитель» по-прежнему выбирается на всю группу (массовое решение «забрать регион»), а наименование и
-  // срок — отдельное поле У КАЖДОГО ОБЪЕКТА (см. жалобу «на каждого объекта ставится срок, наименование
-  // мероприятия, а не в общем на все»). После «Готово» объекты перегруппируются по факту — renderGroupDetailReadonlyHtml.
+  // исполнитель, наименование и срок — ОТДЕЛЬНОЕ поле У КАЖДОГО ОБЪЕКТА, без группового («забрать весь
+  // регион целиком») действия — см. явное решение пользователя «только по объекту» после того, как
+  // групповой Исполнитель был признан недостаточным (жалоба «забыл выбор исполнителя» — наименование и срок
+  // уже были по объекту, а исполнитель отставал). После «Готово» объекты перегруппируются по факту
+  // совпадения (исполнитель, наименование, срок) — renderGroupDetailReadonlyHtml.
   const groups = computeNaturalGroups(item);
   const engNamesList = [...new Set(item.objects.map((o, oi)=>{
     const info = engagementInfo(o);
@@ -7593,10 +7571,7 @@ function renderGroupDetailEditableHtml(item, itemYear, years, namesListId){
       html += engBucketBannerHtml(curBucket);
     }
     const deptLabel = departmentNameFor(g.region) + (g.region===CENTRAL_BUCKET && g.nameRegion ? ` — ${g.nameRegion}` : '');
-    const overridden = g.region !== g.naturalBucket;
-    const ownerOpts = engOwnerOptions(g);
-    const canEditOwner = !!ownerOpts;
-    const keyEsc = keyAttr(g.key); // g.key тут — естественный ключ (computeNaturalGroups), используется ТОЛЬКО для Исполнителя
+    const ownerOpts = engOwnerOptions(g.nameRegion); // одинаков для всех объектов группы — nameRegion у них общий (engagementGroupKey)
 
     const engTotals = [0,0,0,0,0];
     const rowsHtml = g.objects.map((o, idxInGroup)=>{
@@ -7606,6 +7581,7 @@ function renderGroupDetailEditableHtml(item, itemYear, years, namesListId){
       const defPeriod = officialEngagementPeriod(g.auditType, g.key, itemYear);
       const nameVal = (objOv && objOv.name) || defName;
       const periodVal = (objOv && objOv.period) || defPeriod;
+      const ownerVal = (objOv && objOv.owner) || g.region; // g.region === info.bucket любого объекта группы (общий 1-й сегмент ключа)
       const parsedPeriod = parsePeriodRange(periodVal, itemYear);
       const r = perechenObjTableRow(o, bucketN++, years, itemYear, false, oi);
       for(let vi=0; vi<4; vi++) engTotals[vi] += r.nums[vi];
@@ -7619,6 +7595,13 @@ function renderGroupDetailEditableHtml(item, itemYear, years, namesListId){
             <span style="color:var(--text-muted);font-size:12px;">—</span>
             ${quarterYearSelectObj(oi,'to',parsedPeriod.toQ,parsedPeriod.toY,itemYear)}
           </div>
+          ${ownerOpts ? `
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+            <label style="font-size:11.5px;color:var(--text-muted);white-space:nowrap;">Исполнитель</label>
+            <select class="obj-owner-select" onchange="setObjOverride(${oi},'owner', engOwnerFromValueAttr(this.value));renderGroupDetailBody();" style="font-size:12.5px;height:28px;max-width:420px;flex:1;">
+              ${ownerOpts.map(o=>`<option value="${engOwnerValueAttr(o.value)}" ${o.value===ownerVal?'selected':''}>${escAttr(o.label)}</option>`).join('')}
+            </select>
+          </div>` : ''}
         </td>
       </tr>`;
       return r.html + editRow;
@@ -7630,18 +7613,8 @@ function renderGroupDetailEditableHtml(item, itemYear, years, namesListId){
     <div class="card" style="overflow-x:auto;margin-bottom:12px;padding:0;">
       <div style="padding:12px 14px 10px;border-bottom:1px solid var(--border);">
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${deptLabel} · объектов: ${g.objects.length}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div class="field" style="margin:0;"><label>Тип аудита <span style="font-weight:400;color:var(--text-muted);">(по объекту, автоматически)</span></label>${roBoxHtml(g.auditType)}</div>
-          <div class="field" style="margin:0;">
-            <label>Исполнитель${overridden ? ` · <a onclick="setEngOverride('${keyEsc}','owner',null);renderGroupDetailBody();" style="cursor:pointer;font-weight:400;">↺ сбросить на автоматический</a>` : ''}</label>
-            ${canEditOwner
-              ? `<select onchange="setEngOverride('${keyEsc}','owner', engOwnerFromValueAttr(this.value));renderGroupDetailBody();" style="width:100%;">
-                  ${ownerOpts.map(o=>`<option value="${engOwnerValueAttr(o.value)}" ${o.value===g.region?'selected':''}>${escAttr(o.label)}</option>`).join('')}
-                </select>`
-              : roBoxHtml(departmentNameFor(g.region))}
-          </div>
-        </div>
-        <div style="margin-top:8px;font-size:11.5px;color:var(--text-muted);">Наименование мероприятия и срок — отдельно по каждому объекту (в таблице ниже). После «Готово» объекты с одинаковыми значениями будут показаны одним мероприятием.</div>
+        <div class="field" style="margin:0;max-width:360px;"><label>Тип аудита <span style="font-weight:400;color:var(--text-muted);">(по объекту, автоматически)</span></label>${roBoxHtml(g.auditType)}</div>
+        <div style="margin-top:8px;font-size:11.5px;color:var(--text-muted);">Наименование мероприятия, срок${ownerOpts ? ' и исполнитель' : ''} — отдельно по каждому объекту (в таблице ниже). После «Готово» объекты с одинаковыми значениями будут показаны одним мероприятием.</div>
       </div>
       <table>
         ${perechenObjTableHead(years, itemYear, false)}
