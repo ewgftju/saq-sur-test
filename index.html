@@ -157,7 +157,7 @@
   <div class="shell-actions">
     <span class="shell-language">RU</span>
     <div class="shell-user">
-      <div class="user-info"><div class="user-name">Байдәулет Аят Дүйсенғазыұлы</div><div class="user-role">Ведущий аналитик</div></div>
+      <div class="user-info"><label class="user-name" for="demo-user">Пользователь</label><select id="demo-user" aria-label="Пользователь"><option value="standard">Байдәулет Аят Дүйсенғазыұлы</option><option value="saq-demo-superuser">Демо-суперпользователь</option></select><div class="user-role" id="demo-user-role">Ведущий аналитик</div></div>
       <div class="user-avatar" aria-hidden="true">БА</div>
     </div>
     <a class="header-action" href="https://smartaudit.kz/">
@@ -8350,5 +8350,24 @@ renderTableHead();
 applyFilters();
 </script>
 <script src="saq-shell.js"></script>
+<script>
+(function(){
+ const select=document.getElementById('demo-user');
+ const url=new URL(location.href);
+ let value='standard';
+ try { value=localStorage.getItem('saq.demo.user.v1')||value; } catch {}
+ if(url.searchParams.get('demoUser')==='saq-demo-superuser') {
+   value='saq-demo-superuser';url.searchParams.delete('demoUser');history.replaceState(history.state,'',url);
+ }
+ select.value=value==='saq-demo-superuser'?value:'standard';
+ function update(){
+   const demo=select.value==='saq-demo-superuser';
+   document.getElementById('demo-user-role').textContent=demo?'Все действия · демо':'Ведущий аналитик';
+   document.querySelector('.user-avatar').textContent=demo?'СУ':'БА';
+   try { localStorage.setItem('saq.demo.user.v1',select.value); } catch {}
+ }
+ select.addEventListener('change',update);update();
+})();
+</script>
 </body>
 </html>
