@@ -1,3 +1,4 @@
+function demoActorLabel(fallback){ return document.getElementById('demo-user')?.value === 'saq-demo-superuser' ? 'Демо-суперпользователь' : fallback; }
 const historyLog = [
   ["10.08.2026 09:14","ЭВГА — плановый расчёт","Аналитик СУР","142","ok","4 мин 12 с"],
   ["10.08.2026 08:02","ЭВГА — пересчёт по обновлённым данным BCP","Автоматически (расписание)","19","ok","38 с"],
@@ -481,7 +482,7 @@ function processDfoWorkbook(wb){
   const now = new Date();
   const pad = n => String(n).padStart(2,'0');
   const dateStr = `${pad(now.getDate())}.${pad(now.getMonth()+1)}.${now.getFullYear()}, ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  historyLog.unshift([dateStr, 'Проф. контроль — ручная загрузка пакета', 'Инспектор проф.контроля', String(subjects.length), 'ok', '—']);
+  historyLog.unshift([dateStr, 'Проф. контроль — ручная загрузка пакета', demoActorLabel('Инспектор проф.контроля'), String(subjects.length), 'ok', '—']);
 }
 
 // Расчёт SC/SP/R по загруженному вручную пакету — вызывается из «Проверить кандидатов» (раздел 2.2-2.5 постановки задачи)
@@ -659,7 +660,7 @@ function processVkkWorkbook(wb){
   }
   showVkkNote(msg, false);
 
-  historyLog.unshift([dateStr, 'Проф. контроль — загрузка оценок ВКК (Профсовет)', 'Инспектор проф.контроля', String(result.matched), 'ok', '—']);
+  historyLog.unshift([dateStr, 'Проф. контроль — загрузка оценок ВКК (Профсовет)', demoActorLabel('Инспектор проф.контроля'), String(result.matched), 'ok', '—']);
 }
 
 // Применяет уже загруженные (сохранённые) оценки ВКК к текущему dataA.
@@ -735,14 +736,14 @@ function runCandidateCheck(){
       } else {
         note.innerHTML = `<strong>Расчёт SC/SP/R завершён.</strong> Обработано ${uploadedDfoPackage.subjects.length} субъектов из загруженного пакета. Объектов с высоким уровнем риска либо прямым основанием не найдено — максимальный балл по пакету составил <strong>${maxScore}</strong> из 100 (порог «Высокий» — от 71). Перечень пуст: это не ошибка расчёта, а фактический результат по данным пакета.${vkkSuffix}`;
       }
-      historyLog.unshift([dateStr, 'Проф. контроль — Проверить кандидатов (загруженный пакет)', 'Инспектор проф.контроля', String(uploadedDfoPackage.subjects.length), 'ok', '~45 с']);
+      historyLog.unshift([dateStr, 'Проф. контроль — Проверить кандидатов (загруженный пакет)', demoActorLabel('Инспектор проф.контроля'), String(uploadedDfoPackage.subjects.length), 'ok', '~45 с']);
     } else {
       lastCalc = { date: dateStr, count: dataA.length };
       renderCalcStatus();
       const note = document.getElementById('dfo-import-note');
       note.style.display = 'block';
       note.innerHTML = `<strong>Расчёт SC/SP/R завершён.</strong> Обработано ${dataA.length} субъектов. Перечень актуализирован по состоянию на ${dateStr}.`;
-      historyLog.unshift([dateStr, 'Проф. контроль — Проверить кандидатов', 'Инспектор проф.контроля', String(dataA.length), 'ok', '~45 с']);
+      historyLog.unshift([dateStr, 'Проф. контроль — Проверить кандидатов', demoActorLabel('Инспектор проф.контроля'), String(dataA.length), 'ok', '~45 с']);
       renderTable(); renderCards();
     }
 
@@ -939,7 +940,7 @@ function runEvgaRiskAssessment(){
     note.style.display = 'block';
     const okCount = dataEVGA.length;
     note.innerHTML = `<strong>Оценка рисков ЭВГА завершена.</strong> Рассчитано ${okCount} из ${lastCalcEvga.count} объектов. ${notCalculatedList.length>0 ? pluralObjects(notCalculatedList.length)+' не рассчитано из-за недостающих данных по отдельным индикаторам — см. таблицу ниже.' : 'Недостающих данных не обнаружено, все объекты рассчитаны полностью.'} Перечень и уровни риска обновлены.${gapAffected>0 ? ` По индикатору «Длительное отсутствие аудиторских мероприятий» пересчитано ${gapAffected} объектов.` : ''}${salykAffected>0 ? ` По индикатору «Сверка с Салык.кз» пересчитано ${salykAffected} объектов.` : ''}${rotationAffected>0 ? ` По индикатору «Ротация аудиторов» пересчитано ${rotationAffected} объектов.` : ''}`;
-    historyLog.unshift([dateStr, 'ЭВГА — оценка рисков (ручной запуск)', 'Аналитик СУР', String(lastCalcEvga.count), 'ok', `${((Date.now() - startedAt) / 1000).toFixed(1)} с`]);
+    historyLog.unshift([dateStr, 'ЭВГА — оценка рисков (ручной запуск)', demoActorLabel('Аналитик СУР'), String(lastCalcEvga.count), 'ok', `${((Date.now() - startedAt) / 1000).toFixed(1)} с`]);
     renderKpis(); applyFilters();
     saveSurDemo();
   }, 1100);
@@ -1994,6 +1995,7 @@ function renderFinalPerechen(){
 function approvePerechen(){
   if(engagements.length === 0){ alert('Нельзя утвердить пустой перечень — сначала сформируйте хотя бы одно аудиторское мероприятие.'); return; }
   perechenApproved = true;
+  historyLog.unshift([new Date().toLocaleString("ru-RU"), "ЭВГА — утверждение перечня", demoActorLabel("Аналитик СУР"), String(engagements.length), "ok", "—"]);
   saveSurDemo();
   updateApprovalUI();
 }
