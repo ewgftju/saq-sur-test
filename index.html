@@ -6413,6 +6413,13 @@ function engagementInfo(o){
     // nameRegion — регион для названия мероприятия; у финотчётности АБП и безрегиональных республиканских
     // объектов региона в названии нет (null), у всех остальных (включая флагманские и КвазиГос) — сам регион.
     nameRegion: central ? null : region,
+    // altRegion — ЕСТЬ ЛИ у объекта территориальный ДВГА, которому Комитет может вручную отдать именно его
+    // (выбор «Исполнителя», см. engOwnerOptions) — НЕ путать с nameRegion выше: у финотчётности АБП регион
+    // в данных вполне реальный (просто не участвует в автоматическом названии мероприятия), поэтому у таких
+    // объектов altRegion = region, а не null, и выбор исполнителя для них должен показываться. Пусто только
+    // когда региона нет вообще (noRegion) — министерства, КПМ, АП и прочие безрегиональные республиканские
+    // органы: отдать такой объект буквально некому.
+    altRegion: noRegion ? null : region,
     auditType,
     // flagship — ТОЛЬКО для группировки: не даёт флагманскому областному аудиту слиться в одно мероприятие
     // с районными/городскими объектами того же региона и типа аудита, когда оба естественно лежат у одной
@@ -7571,9 +7578,9 @@ function renderGroupDetailEditableHtml(item, itemYear, years, namesListId){
       html += engBucketBannerHtml(curBucket);
     }
     const deptLabel = departmentNameFor(g.region) + (g.region===CENTRAL_BUCKET && g.nameRegion ? ` — ${g.nameRegion}` : '');
-    const ownerOpts = engOwnerOptions(g.nameRegion); // одинаков для всех объектов группы — nameRegion у них общий (engagementGroupKey)
 
     const engTotals = [0,0,0,0,0];
+    let groupHasOwnerChoice = false;
     const rowsHtml = g.objects.map((o, idxInGroup)=>{
       const oi = g.objIdx[idxInGroup];
       const objOv = objOverrideFor(item, oi);
@@ -7582,6 +7589,13 @@ function renderGroupDetailEditableHtml(item, itemYear, years, namesListId){
       const nameVal = (objOv && objOv.name) || defName;
       const periodVal = (objOv && objOv.period) || defPeriod;
       const ownerVal = (objOv && objOv.owner) || g.region; // g.region === info.bucket любого объекта группы (общий 1-й сегмент ключа)
+      // Выбор Исполнителя считаем ПО СВОЕМУ РЕГИОНУ ОБЪЕКТА (altRegion), а не по g.nameRegion группы: внутри
+      // одной естественной группы altRegion может различаться — у финотчётности АБП ВСЕ объекты страны лежат
+      // в ОДНОЙ группе (bucket/nameRegion/auditType у них совпадают), но свой регион для возможного переноса
+      // на территориальный ДВГА — у каждого свой (см. engagementInfo.altRegion).
+      const oInfo = engagementInfo(o);
+      const ownerOptsForObj = engOwnerOptions(oInfo.altRegion);
+      if(ownerOptsForObj) groupHasOwnerChoice = true;
       const parsedPeriod = parsePeriodRange(periodVal, itemYear);
       const r = perechenObjTableRow(o, bucketN++, years, itemYear, false, oi);
       for(let vi=0; vi<4; vi++) engTotals[vi] += r.nums[vi];
@@ -7595,11 +7609,11 @@ function renderGroupDetailEditableHtml(item, itemYear, years, namesListId){
             <span style="color:var(--text-muted);font-size:12px;">—</span>
             ${quarterYearSelectObj(oi,'to',parsedPeriod.toQ,parsedPeriod.toY,itemYear)}
           </div>
-          ${ownerOpts ? `
+          ${ownerOptsForObj ? `
           <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
             <label style="font-size:11.5px;color:var(--text-muted);white-space:nowrap;">Исполнитель</label>
             <select class="obj-owner-select" onchange="setObjOverride(${oi},'owner', engOwnerFromValueAttr(this.value));renderGroupDetailBody();" style="font-size:12.5px;height:28px;max-width:420px;flex:1;">
-              ${ownerOpts.map(o=>`<option value="${engOwnerValueAttr(o.value)}" ${o.value===ownerVal?'selected':''}>${escAttr(o.label)}</option>`).join('')}
+              ${ownerOptsForObj.map(o=>`<option value="${engOwnerValueAttr(o.value)}" ${o.value===ownerVal?'selected':''}>${escAttr(o.label)}</option>`).join('')}
             </select>
           </div>` : ''}
         </td>
@@ -7614,7 +7628,7 @@ function renderGroupDetailEditableHtml(item, itemYear, years, namesListId){
       <div style="padding:12px 14px 10px;border-bottom:1px solid var(--border);">
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${deptLabel} · объектов: ${g.objects.length}</div>
         <div class="field" style="margin:0;max-width:360px;"><label>Тип аудита <span style="font-weight:400;color:var(--text-muted);">(по объекту, автоматически)</span></label>${roBoxHtml(g.auditType)}</div>
-        <div style="margin-top:8px;font-size:11.5px;color:var(--text-muted);">Наименование мероприятия, срок${ownerOpts ? ' и исполнитель' : ''} — отдельно по каждому объекту (в таблице ниже). После «Готово» объекты с одинаковыми значениями будут показаны одним мероприятием.</div>
+        <div style="margin-top:8px;font-size:11.5px;color:var(--text-muted);">Наименование мероприятия, срок${groupHasOwnerChoice ? ' и исполнитель' : ''} — отдельно по каждому объекту (в таблице ниже). После «Готово» объекты с одинаковыми значениями будут показаны одним мероприятием.</div>
       </div>
       <table>
         ${perechenObjTableHead(years, itemYear, false)}
