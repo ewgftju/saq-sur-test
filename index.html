@@ -500,6 +500,7 @@
           <span class="badge low" id="dvga-detail-status">—</span>
         </div>
         <div id="dvga-detail-meta" style="color:var(--text-2);font-size:13px;margin-bottom:16px;"></div>
+        <div id="dvga-detail-extra"></div>
         <div id="dvga-detail-objects"></div>
         <div class="actions" style="margin-top:16px;">
           <button class="btn" onclick="exportDvgaBatch(currentDvgaBatch)"><i class="ti ti-file-spreadsheet"></i>Выгрузить результаты СУР (Excel)</button>
@@ -730,6 +731,7 @@
             <div class="stat"><div class="lbl">Объектов в составе</div><div class="val" id="gd-count">—</div></div>
           </div>
           <div class="actions" id="gd-actions-top"></div>
+          <div class="note" id="gd-amend-note" style="display:none;margin-top:12px;"></div>
           <div class="section-title">Состав</div>
           <div id="gd-objects"></div>
           <div class="actions" id="gd-actions-bottom"></div>
@@ -760,6 +762,9 @@
       </div>
 
     <!-- ============ МОДАЛЬНОЕ ОКНО: ФОРМИРОВАНИЕ ПЕРЕЧНЯ (ПЛАНИРОВАНИЕ АУДИТА) ============ -->
+    <div id="dvga-rework-backdrop" style="display:none;position:fixed;inset:0;background:rgba(20,22,28,.55);z-index:1000;align-items:flex-start;justify-content:center;overflow-y:auto;padding:90px 20px;">
+      <div id="dvga-rework-card" class="card" style="width:100%;max-width:580px;padding:22px 26px;"></div>
+    </div>
     <div id="perechen-modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(20,22,28,.55);z-index:100;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 20px;">
       <div class="card" style="max-width:900px;width:100%;padding:0;margin:0;">
         <div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
@@ -7186,8 +7191,8 @@ function setSurDraftDeadline(iso){
 /* индикатор срока исполнения в ДВГА: красный — срок прошёл, жёлтый — осталось не более DVGA_WARN_DAYS дней, зелёный — срок не наступил */
 const DVGA_WARN_DAYS = 3;
 function dvgaDeadlineLight(b){
-  const due = ruToDate(b.deadline);
-  if(!due) return {cls:'neutral', color:'#b8bcc5', label:'Срок не задан'};
+  const due = ruToDate(b.status === 'rework' ? b.reworkDeadline : b.deadline);
+  if(!due) return {cls:'neutral', color:'#b8bcc5', label: b.status === 'rework' ? 'Срок доработки не задан' : 'Срок не задан'};
   const DAY = 24*3600*1000;
   const ref = b.status === 'returned' ? ruToDate(b.returnedDate) : ruToDate(demoTodayStr());
   const diff = Math.round((due - ref)/DAY);   // >0 — до срока, <0 — просрочка
@@ -7200,7 +7205,7 @@ function dvgaDeadlineLight(b){
 }
 function dvgaDeadlineCell(b){
   const l = dvgaDeadlineLight(b);
-  return `<td><div style="white-space:nowrap;"><div style="color:var(--text-2);">${b.deadline||'—'}</div><span style="display:inline-flex;align-items:center;gap:6px;margin-top:3px;"><span style="width:10px;height:10px;border-radius:50%;background:${l.color};display:inline-block;box-shadow:0 0 0 3px ${l.color}26;"></span><span style="font-size:12px;color:var(--text-2);">${l.label}</span></span></div></td>`;
+  return `<td><div style="white-space:nowrap;"><div style="color:var(--text-2);">${(b.status==='rework' ? b.reworkDeadline : b.deadline)||'—'}</div><span style="display:inline-flex;align-items:center;gap:6px;margin-top:3px;"><span style="width:10px;height:10px;border-radius:50%;background:${l.color};display:inline-block;box-shadow:0 0 0 3px ${l.color}26;"></span><span style="font-size:12px;color:var(--text-2);">${l.label}</span></span></div></td>`;
 }
 function toggleSurDraftEdit(){
   surDraftEditMode = !surDraftEditMode;
@@ -7284,39 +7289,187 @@ function setDvgaTab(tab){
   else if(tab==='active') renderDvgaActive();
   else renderDvgaReturned();
 }
+
+/* ---------- ДВГА → КВГА: протокол ревизионной комиссии (обязателен) и возврат на доработку ---------- */
+let dvgaFlashMsg = '';
+let dvgaReworkDraft = null;   // {i, files:[{name,size}]} — состояние окна «Вернуть на доработку»
+function dvgaFmtSize(n){
+  if(n == null) return '';
+  if(n < 1024) return n + ' Б';
+  if(n < 1024*1024) return Math.round(n/1024) + ' КБ';
+  return (n/1024/1024).toFixed(1).replace('.',',') + ' МБ';
+}
+function dvgaPickFiles(accept, multiple, cb){
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = accept; inp.multiple = !!multiple;
+  inp.onchange = () => { const fs = [...inp.files].map(f => ({name:f.name, size:f.size})); if(fs.length) cb(fs); };
+  inp.click();
+}
+function dvgaFileChip(f, removeHtml){
+  return `<span style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:12.5px;">
+    <i class="ti ti-file-text" style="color:var(--accent);font-size:16px;"></i>
+    <span style="font-weight:500;">${f.name}</span>
+    <span style="color:var(--text-muted);">${dvgaFmtSize(f.size)}${f.date ? ' · ' + f.date : ''}</span>${removeHtml||''}
+  </span>`;
+}
+function dvgaProtocolEditable(b){ return ['review','coordination','signing','rework'].includes(b.status); }
+function dvgaAttachProtocol(i){
+  dvgaPickFiles('.pdf,.doc,.docx', false, fs => {
+    regionalBatches[i].protocol = {name: fs[0].name, size: fs[0].size, date: demoTodayStr()};
+    renderDvgaMain();
+    if(document.getElementById('view-dvga-detail').style.display === 'block') renderDvgaBatchDetail();
+  });
+}
+function dvgaRemoveProtocol(i){
+  regionalBatches[i].protocol = null;
+  renderDvgaMain();
+  if(document.getElementById('view-dvga-detail').style.display === 'block') renderDvgaBatchDetail();
+}
+function dvgaProtocolCell(b){
+  if(b.protocol) return `<span class="badge low" title="${b.protocol.name}"><i class="ti ti-paperclip"></i> Протокол приложен</span>`;
+  if(b.status === 'returned') return '<span style="color:var(--text-muted);">—</span>';
+  return '<span class="badge high">Протокол не приложен</span>';
+}
+function dvgaProtocolBlockHtml(b, i){
+  const edit = dvgaProtocolEditable(b);
+  let body;
+  if(b.protocol){
+    const rm = edit ? `<button class="btn" style="height:26px;padding:0 8px;font-size:11.5px;margin-left:4px;" onclick="dvgaRemoveProtocol(${i})" title="Убрать файл"><i class="ti ti-x"></i></button>` : '';
+    body = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${dvgaFileChip(b.protocol, rm)}
+      ${edit ? `<button class="btn" style="height:30px;font-size:12.5px;" onclick="dvgaAttachProtocol(${i})"><i class="ti ti-replace"></i>Заменить</button>` : ''}</div>`;
+  } else if(edit){
+    body = `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="dvgaAttachProtocol(${i})"><i class="ti ti-paperclip"></i>Прикрепить протокол</button>
+      <span style="font-size:12.5px;color:var(--danger-text);"><i class="ti ti-alert-circle" style="vertical-align:-2px;"></i> Без протокола результаты нельзя направить в КВГА</span>
+      <span style="font-size:12px;color:var(--text-muted);">PDF, DOC, DOCX</span></div>`;
+  } else {
+    body = '<span style="color:var(--text-muted);font-size:13px;">Протокол не был приложен</span>';
+  }
+  return `<div class="card" style="padding:14px 18px;margin-bottom:14px;${(!b.protocol && edit) ? 'border-color:var(--danger-border);' : ''}">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px;">
+      <div style="font-size:13.5px;font-weight:600;">Протокол</div>
+      ${edit ? '<span class="badge neutral">Обязательно для направления в КВГА</span>' : ''}
+    </div>
+    ${body}
+  </div>`;
+}
+function dvgaHistoryHtml(b){
+  const h = b.history || [];
+  if(!h.length) return '';
+  const rows = h.slice().reverse().map((e, k) => {
+    const latest = k === 0 && b.status === 'rework';
+    return `<div style="padding:10px 12px;border-radius:8px;margin-top:8px;${latest ? 'background:var(--danger-bg);border:1px solid var(--danger-border);' : 'background:var(--surface-alt);'}">
+      <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;">
+        <strong style="font-size:13px;${latest ? 'color:var(--danger-text);' : ''}">КВГА → ДВГА: возвращено на доработку</strong>
+        <span style="font-size:12px;color:var(--text-muted);">${e.date}${e.deadline ? ' · срок доработки: ' + e.deadline : ''}</span>
+      </div>
+      <div style="font-size:13px;margin-top:6px;white-space:pre-wrap;">${e.comment}</div>
+      ${(e.files && e.files.length) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">${e.files.map(f => dvgaFileChip(f)).join('')}</div>` : ''}
+    </div>`;
+  }).join('');
+  return `<div class="card" style="padding:14px 18px;margin-bottom:14px;">
+    <div style="font-size:13.5px;font-weight:600;">История обмена с КВГА (${h.length})</div>${rows}
+  </div>`;
+}
+function openDvgaRework(i){
+  const b = regionalBatches[i];
+  if(!b || b.status !== 'returned' || b.merged) return;
+  dvgaReworkDraft = {i, files: []};
+  renderDvgaReworkModal();
+  document.getElementById('dvga-rework-backdrop').style.display = 'flex';
+}
+function renderDvgaReworkModal(){
+  const d = dvgaReworkDraft; if(!d) return;
+  const b = regionalBatches[d.i];
+  const kept = b.objects.filter(o => o.kept).length;
+  const chips = d.files.map((f, k) => dvgaFileChip(f, `<button class="btn" style="height:24px;padding:0 6px;font-size:11px;" onclick="dvgaReworkRemoveFile(${k})" title="Убрать"><i class="ti ti-x"></i></button>`)).join('');
+  const prevComment = (document.getElementById('dvga-rework-comment')||{}).value || '';
+  const prevDeadline = (document.getElementById('dvga-rework-deadline')||{}).value || '';
+  document.getElementById('dvga-rework-card').innerHTML = `
+    <div style="font-size:17px;font-weight:600;margin-bottom:4px;">Вернуть в ДВГА на доработку</div>
+    <div style="font-size:12.5px;color:var(--text-2);margin-bottom:16px;">${b.region} · ${b.year} год · направлено объектов: ${b.objects.length} · оставлено ДВГА: ${kept}</div>
+    <div style="font-size:13px;font-weight:500;margin-bottom:6px;">Комментарий <span style="color:var(--danger-text);">*</span></div>
+    <textarea id="dvga-rework-comment" rows="5" oninput="dvgaReworkValidate()" placeholder="Что необходимо доработать ДВГА" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:10px;font-family:inherit;font-size:13px;resize:vertical;">${prevComment}</textarea>
+    <div style="font-size:13px;font-weight:500;margin:14px 0 6px;">Документы <span style="color:var(--text-muted);font-weight:400;">(необязательно)</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">${chips}
+      <button class="btn" style="height:30px;font-size:12.5px;" onclick="dvgaReworkAddFiles()"><i class="ti ti-paperclip"></i>Прикрепить файлы</button></div>
+    <div style="font-size:13px;font-weight:500;margin:14px 0 6px;">Срок доработки <span style="color:var(--text-muted);font-weight:400;">(необязательно)</span></div>
+    <input type="date" id="dvga-rework-deadline" value="${prevDeadline}" style="height:34px;border:1px solid var(--border);border-radius:8px;padding:0 10px;font-family:inherit;font-size:13px;">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
+      <button class="btn" onclick="closeDvgaRework()">Отмена</button>
+      <button class="btn btn-primary" id="dvga-rework-submit" onclick="submitDvgaRework()" disabled style="opacity:.5;cursor:not-allowed;"><i class="ti ti-arrow-back-up"></i>Вернуть на доработку</button>
+    </div>`;
+  dvgaReworkValidate();
+}
+function dvgaReworkValidate(){
+  const t = (document.getElementById('dvga-rework-comment')||{}).value || '';
+  const btn = document.getElementById('dvga-rework-submit');
+  if(!btn) return;
+  const ok = t.trim().length > 0;
+  btn.disabled = !ok; btn.style.opacity = ok ? '1' : '.5'; btn.style.cursor = ok ? 'pointer' : 'not-allowed';
+}
+function dvgaReworkAddFiles(){
+  dvgaPickFiles('.pdf,.doc,.docx,.xls,.xlsx,.jpg,.png', true, fs => { dvgaReworkDraft.files.push(...fs); renderDvgaReworkModal(); });
+}
+function dvgaReworkRemoveFile(k){ dvgaReworkDraft.files.splice(k, 1); renderDvgaReworkModal(); }
+function closeDvgaRework(){
+  dvgaReworkDraft = null;
+  document.getElementById('dvga-rework-backdrop').style.display = 'none';
+}
+function submitDvgaRework(){
+  const d = dvgaReworkDraft; if(!d) return;
+  const comment = (document.getElementById('dvga-rework-comment').value || '').trim();
+  if(!comment) return;
+  const dl = document.getElementById('dvga-rework-deadline').value;       // yyyy-mm-dd
+  const deadline = dl ? dl.split('-').reverse().join('.') : null;
+  const b = regionalBatches[d.i];
+  b.history = b.history || [];
+  b.history.push({date: demoTodayStr(), comment, files: d.files.slice(), deadline});
+  b.reworkDeadline = deadline;
+  b.status = 'rework';
+  b.merged = false;
+  b.returnedDate = null;
+  dvgaFlashMsg = `<strong>Результаты по региону «${b.region}» возвращены в ДВГА на доработку.</strong> Комментарий${d.files.length ? ' и документы (' + d.files.length + ')' : ''} направлены, пачка появилась у ДВГА на вкладке «На рассмотрении».`;
+  closeDvgaRework();
+  if(document.getElementById('view-dvga-detail').style.display === 'block') openDvgaMain();
+  else renderDvgaMain();
+}
 function dvgaBatchStatusBadge(status){
   const map = {
     review: '<span class="badge mid">На рассмотрении</span>',
     coordination: '<span class="badge mid">На согласовании в ДВГА</span>',
     signing: '<span class="badge mid">На подписании в ДВГА</span>',
     returned: '<span class="badge sent">Возвращено в КВГА</span>',
+    rework: '<span class="badge high">На доработке (возврат КВГА)</span>',
   };
   return map[status] || status;
 }
 function dvgaBatchActionButton(b, i){
-  if(b.status === 'review') return `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="advanceDvgaBatch(${i})"><i class="ti ti-send"></i>На согласование</button>`;
+  if(b.status === 'review' || b.status === 'rework') return `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="advanceDvgaBatch(${i})"><i class="ti ti-send"></i>На согласование</button>`;
   if(b.status === 'coordination') return `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="advanceDvgaBatch(${i})"><i class="ti ti-send"></i>На подписание</button>`;
-  if(b.status === 'signing') return `<button class="btn btn-primary" style="height:28px;padding:0 10px;font-size:12px;" onclick="advanceDvgaBatch(${i})"><i class="ti ti-check"></i>Подписать и направить в КВГА</button>`;
+  if(b.status === 'signing') return b.protocol
+    ? `<button class="btn btn-primary" style="height:28px;padding:0 10px;font-size:12px;" onclick="advanceDvgaBatch(${i})"><i class="ti ti-check"></i>Подписать и направить в КВГА</button>`
+    : `<button class="btn btn-primary" style="height:28px;padding:0 10px;font-size:12px;opacity:.45;cursor:not-allowed;" disabled title="Прикрепите протокол"><i class="ti ti-check"></i>Подписать и направить в КВГА</button>`;
   return '';
 }
 function dvgaRowActionsCell(b, i){
   const exportBtn = `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="exportDvgaBatch(${i})" title="Выгрузить результаты СУР"><i class="ti ti-file-spreadsheet"></i>Excel</button>`;
-  return `<td onclick="event.stopPropagation()"><div style="display:flex;gap:6px;justify-content:flex-end;">${exportBtn}${dvgaBatchActionButton(b, i)}</div></td>`;
+  return `<td onclick="event.stopPropagation()"><div style="display:flex;gap:6px;justify-content:flex-end;white-space:nowrap;">${exportBtn}${dvgaBatchActionButton(b, i)}</div></td>`;
 }
 function renderDvgaActive(){
   const el = document.getElementById('dvga-active-content');
   const rows = regionalBatches.map((b,i)=>({b,i})).filter(x=>x.b.contour===currentContour && x.b.status!=='returned');
   el.innerHTML = `
     <div class="card" style="overflow-x:auto;"><table>
-      <thead><tr><th>Регион</th><th style="width:70px;">Год</th><th style="width:110px;">Направлено</th><th style="width:200px;">Срок исполнения</th><th style="width:90px;">Объектов</th><th style="width:190px;">Статус</th><th style="width:340px;"></th></tr></thead>
+      <thead><tr><th style="min-width:160px;">Регион</th><th style="width:66px;">Год</th><th style="width:104px;">Направлено</th><th style="width:170px;">Срок исполнения</th><th style="width:84px;">Объектов</th><th style="width:215px;">Статус / протокол</th><th style="width:300px;"></th></tr></thead>
       <tbody>${rows.length ? rows.map(({b,i})=>`
         <tr class="row" onclick="openDvgaBatchDetail(${i})">
           <td><strong>${b.region}</strong></td>
-          <td style="color:var(--text-2);">${b.year}</td>
+          <td style="color:var(--text-2);white-space:nowrap;">${b.year}</td>
           <td style="color:var(--text-2);">${b.sentDate}</td>
           ${dvgaDeadlineCell(b)}
           <td>${b.objects.length}</td>
-          <td>${dvgaBatchStatusBadge(b.status)}</td>
+          <td><div>${dvgaBatchStatusBadge(b.status)}</div><div style="margin-top:5px;">${dvgaProtocolCell(b)}</div></td>
           ${dvgaRowActionsCell(b, i)}
         </tr>`).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px;">Нет объектов, направленных на рассмотрение. Отметьте объекты на вкладке «Проверка», сформируйте проект и направьте его в ДВГА — вкладка «Черновики».</td></tr>`}
       </tbody>
@@ -7334,24 +7487,30 @@ function renderDvgaReturned(){
   const el = document.getElementById('dvga-returned-content');
   const rows = regionalBatches.map((b,i)=>({b,i})).filter(x=>x.b.contour===currentContour && x.b.status==='returned');
   const pending = unmergedReturnedBatches().length;
+  const flash = dvgaFlashMsg; dvgaFlashMsg = '';
   el.innerHTML = `
+    ${flash ? `<div class="note" style="margin-bottom:12px;">${flash}</div>` : ''}
     <div class="topbar" style="margin-bottom:8px;">
       <div class="section-title" style="margin:0;">Возвращённые из ДВГА (${rows.length})</div>
       ${pending ? `<button class="btn btn-primary" onclick="mergeReturnedIntoDraft()"><i class="ti ti-folder-plus"></i>Сформировать проект перечня (${pending})</button>` : ''}
     </div>
     <div class="card" style="overflow-x:auto;"><table>
-      <thead><tr><th>Регион</th><th style="width:90px;">Год</th><th style="width:110px;">Возвращено</th><th style="width:220px;">Срок исполнения</th><th style="width:100px;">Направлено</th><th style="width:100px;">Оставлено</th><th style="width:210px;">Статус</th><th style="width:110px;"></th></tr></thead>
+      <thead><tr><th style="min-width:160px;">Регион</th><th style="width:66px;">Год</th><th style="width:104px;">Возвращено</th><th style="width:190px;">Срок исполнения</th><th style="width:100px;">Направлено</th><th style="width:100px;">Оставлено</th><th style="width:210px;">Статус / протокол</th><th style="width:240px;"></th></tr></thead>
       <tbody>${rows.length ? rows.map(({b,i})=>{
         const kept = b.objects.filter(o=>o.kept).length;
         return `<tr class="row" onclick="openDvgaBatchDetail(${i})">
           <td><strong>${b.region}</strong></td>
-          <td style="color:var(--text-2);">${b.year}</td>
+          <td style="color:var(--text-2);white-space:nowrap;">${b.year}</td>
           <td style="color:var(--text-2);">${b.returnedDate||'—'}</td>
           ${dvgaDeadlineCell(b)}
           <td>${b.objects.length}</td>
           <td>${kept}</td>
-          <td>${b.merged ? '<span class="badge sent">Учтено в проекте перечня</span>' : '<span class="badge mid">Ожидает объединения</span>'}</td>
-          <td onclick="event.stopPropagation()"><button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="exportDvgaBatch(${i})" title="Выгрузить результаты СУР"><i class="ti ti-file-spreadsheet"></i>Excel</button></td>
+          <td><div>${b.merged ? '<span class="badge sent">Учтено в проекте перечня</span>' : '<span class="badge mid">Ожидает объединения</span>'}</div>
+            <div style="margin-top:5px;">${b.protocol ? `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--accent);" title="${b.protocol.name}"><i class="ti ti-paperclip"></i>Протокол · скачать</span>` : '<span style="font-size:12.5px;color:var(--text-muted);">Протокол не приложен</span>'}</div></td>
+          <td onclick="event.stopPropagation()"><div style="display:flex;gap:6px;justify-content:flex-end;">
+            <button class="btn" style="height:28px;padding:0 10px;font-size:12px;white-space:nowrap;" onclick="exportDvgaBatch(${i})" title="Выгрузить результаты СУР"><i class="ti ti-file-spreadsheet"></i>Excel</button>
+            ${b.merged ? '' : `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;white-space:nowrap;" onclick="openDvgaRework(${i})" title="Вернуть в ДВГА на доработку"><i class="ti ti-arrow-back-up"></i>На доработку</button>`}
+          </div></td>
         </tr>`;
       }).join('') : `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px;">Пока нет возвращённых из ДВГА результатов</td></tr>`}
       </tbody>
@@ -7360,9 +7519,10 @@ function renderDvgaReturned(){
 function advanceDvgaBatch(i){
   const b = regionalBatches[i];
   if(!b) return;
-  if(b.status === 'review') b.status = 'coordination';
+  if(b.status === 'review' || b.status === 'rework') b.status = 'coordination';
   else if(b.status === 'coordination') b.status = 'signing';
   else if(b.status === 'signing'){
+    if(!b.protocol) return;   // направить в КВГА без протокола нельзя
     b.status = 'returned';
     b.returnedDate = demoTodayStr();
   }
@@ -7459,17 +7619,18 @@ function renderDvgaBatchDetail(){
   const b = regionalBatches[currentDvgaBatch];
   if(!b) return;
   document.getElementById('dvga-detail-title').textContent = `ДВГА по региону: ${b.region}`;
-  const statusText = {review:'На рассмотрении', coordination:'На согласовании в ДВГА', signing:'На подписании в ДВГА', returned:'Возвращено в КВГА'}[b.status] || b.status;
-  const statusCls = {review:'mid', coordination:'mid', signing:'mid', returned:'sent'}[b.status] || 'low';
+  const statusText = {review:'На рассмотрении', coordination:'На согласовании в ДВГА', signing:'На подписании в ДВГА', returned:'Возвращено в КВГА', rework:'На доработке (возврат КВГА)'}[b.status] || b.status;
+  const statusCls = {review:'mid', coordination:'mid', signing:'mid', returned:'sent', rework:'high'}[b.status] || 'low';
   const statusEl = document.getElementById('dvga-detail-status');
   statusEl.textContent = statusText;
   statusEl.className = 'badge ' + statusCls;
   const keptCount = b.objects.filter(o=>o.kept).length;
   document.getElementById('dvga-detail-meta').innerHTML =
     `${b.year} год · Направлено: ${b.sentDate} · Объектов направлено: ${b.objects.length} · Оставлено к проверке: ${keptCount}${b.returnedDate ? ` · Возвращено в КВГА: ${b.returnedDate}` : ''}`;
-  const editable = b.status === 'review';
+  const editable = b.status === 'review' || b.status === 'rework';
   const labelFn = currentContour === 'b' ? riskLabelB : riskLabelA;
   const colCount = 9;
+  document.getElementById('dvga-detail-extra').innerHTML = dvgaHistoryHtml(b) + dvgaProtocolBlockHtml(b, currentDvgaBatch);
   const rows = b.objects.map((o,oi)=>{
     const expanded = dvgaExpandedRow === oi;
     let html = `<tr class="row" style="cursor:pointer;${o.kept?'':'opacity:.5;'}" onclick="toggleDvgaRow(${oi})">
@@ -7498,10 +7659,14 @@ function renderDvgaBatchDetail(){
       </table>
     </div>`;
   let actionsHtml = '';
-  if(b.status === 'review') actionsHtml = `<button class="btn btn-primary" onclick="advanceDvgaBatch(${currentDvgaBatch})"><i class="ti ti-send"></i>Отправить на согласование (оставлено: ${keptCount})</button>`;
+  if(b.status === 'review' || b.status === 'rework') actionsHtml = `<button class="btn btn-primary" onclick="advanceDvgaBatch(${currentDvgaBatch})"><i class="ti ti-send"></i>Отправить на согласование (оставлено: ${keptCount})</button>`;
   else if(b.status === 'coordination') actionsHtml = `<button class="btn btn-primary" onclick="advanceDvgaBatch(${currentDvgaBatch})"><i class="ti ti-send"></i>На подписание</button>`;
-  else if(b.status === 'signing') actionsHtml = `<button class="btn btn-primary" onclick="advanceDvgaBatch(${currentDvgaBatch})"><i class="ti ti-check"></i>Подписать и направить в КВГА</button>`;
-  else if(b.status === 'returned') actionsHtml = b.merged ? `<span class="badge sent">Учтено в проекте перечня</span>` : `<span class="badge mid">Ожидает объединения в проект перечня</span>`;
+  else if(b.status === 'signing') actionsHtml = b.protocol
+    ? `<button class="btn btn-primary" onclick="advanceDvgaBatch(${currentDvgaBatch})"><i class="ti ti-check"></i>Подписать и направить в КВГА</button>`
+    : `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><button class="btn btn-primary" disabled style="opacity:.45;cursor:not-allowed;"><i class="ti ti-check"></i>Подписать и направить в КВГА</button><span style="font-size:12.5px;color:var(--danger-text);"><i class="ti ti-alert-circle" style="vertical-align:-2px;"></i> Прикрепите протокол</span></div>`;
+  else if(b.status === 'returned') actionsHtml = b.merged
+    ? `<span class="badge sent">Учтено в проекте перечня</span>`
+    : `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><button class="btn btn-primary" onclick="openDvgaRework(${currentDvgaBatch})"><i class="ti ti-arrow-back-up"></i>Вернуть на доработку</button><span class="badge mid">Ожидает объединения в проект перечня</span></div>`;
   document.getElementById('dvga-detail-actions').innerHTML = actionsHtml;
 }
 /* ---------- выгрузка результата СУР по региону, направленного на рассмотрение в ДВГА ---------- */
@@ -7518,7 +7683,7 @@ function exportDvgaBatch(i){
     o.score!=null?o.score:'', riskLabelB[o.risk]||o.risk||'', o.kept?'Оставлен':'Исключён',
     (o.basis||'').replace(/<[^>]+>/g,'')
   ]);
-  const statusSlug = {review:'na_rassmotrenii', coordination:'na_soglasovanii', signing:'na_podpisanii', returned:'vozvrasheno'}[b.status] || b.status;
+  const statusSlug = {review:'na_rassmotrenii', coordination:'na_soglasovanii', signing:'na_podpisanii', returned:'vozvrasheno', rework:'na_dorabotke'}[b.status] || b.status;
   const safeRegion = b.region.replace(/[«»]/g,'').replace(/\s+/g,'_');
   downloadCSV(`sur_dvga_${statusSlug}_${safeRegion}_${b.year}.csv`, [header, ...rows]);
 }
@@ -7582,7 +7747,8 @@ function renderGroupActionsBarHtml(item, index, gdIsB, editable){
   const editLabel = !editable
     ? (amendmentActive ? '<i class="ti ti-check"></i>Завершить приказ' : '<i class="ti ti-file-diff"></i>Внести изменения (приказ)')
     : (groupEditMode ? '<i class="ti ti-check"></i>Готово' : '<i class="ti ti-edit"></i>Редактировать');
-  const addBtnVisible = !editable ? (!gdIsB && amendmentActive) : (!gdIsB && groupEditMode);
+  // по приказу на внесение изменений объекты можно только исключать — «Добавить объекты» доступно лишь при составлении проекта перечня
+  const addBtnVisible = !editable ? false : (!gdIsB && groupEditMode);
   return `
     <button class="btn" onclick="toggleGroupEdit()">${editLabel}</button>
     ${addBtnVisible ? `<button class="btn btn-primary" onclick="startAddToGroup()"><i class="ti ti-plus"></i>Добавить объекты</button>` : ''}
@@ -7716,12 +7882,12 @@ function renderGroupDetailEditableHtml(item, itemYear, years, namesListId){
       const ownerOptsForObj = engOwnerOptions(oInfo.altRegion);
       if(ownerOptsForObj) groupHasOwnerChoice = true;
       const parsedPeriod = parsePeriodRange(periodVal, itemYear);
-      const r = perechenObjTableRow(o, bucketN++, years, itemYear, false, oi);
+      const r = perechenObjTableRow(o, bucketN++, years, itemYear, amendmentActive, oi);
       for(let vi=0; vi<4; vi++) engTotals[vi] += r.nums[vi];
       engTotals[4] += r.total;
       const editRow = `<tr class="eng-edit-row">
         <td></td>
-        <td colspan="6" style="padding:4px 12px 12px;background:var(--surface-alt);">
+        <td colspan="${amendmentActive ? 7 : 6}" style="padding:4px 12px 12px;background:var(--surface-alt);">
           <div style="display:grid;grid-template-columns:2fr 1fr auto 1fr;gap:8px;align-items:center;">
             <input type="text" list="${namesListId}" value="${escAttr(nameVal)}" placeholder="Наименование аудиторского мероприятия" title="Наименование аудиторского мероприятия" onchange="setObjOverride(${oi},'name',this.value)" style="width:100%;font-size:12.5px;height:30px;">
             ${quarterYearSelectObj(oi,'from',parsedPeriod.fromQ,parsedPeriod.fromY,itemYear)}
@@ -7750,7 +7916,7 @@ function renderGroupDetailEditableHtml(item, itemYear, years, namesListId){
         <div style="margin-top:8px;font-size:11.5px;color:var(--text-muted);">Наименование мероприятия, срок${groupHasOwnerChoice ? ' и исполнитель' : ''} — отдельно по каждому объекту (в таблице ниже). После «Готово» объекты с одинаковыми значениями будут показаны одним мероприятием.</div>
       </div>
       <table>
-        ${perechenObjTableHead(years, itemYear, false)}
+        ${perechenObjTableHead(years, itemYear, amendmentActive)}
         <tbody>${rowsHtml}
           <tr>
             <td colspan="2" style="background:var(--accent-bg);color:var(--accent);font-weight:600;padding:9px 12px;">Всего по группе:</td>
@@ -7824,11 +7990,17 @@ function renderGroupDetailBody(){
   // Контур Б: состав объектов перечня не редактируется с этого экрана вообще (ни в черновике, ни через приказ) —
   // субъекты уже распределены по регионам и согласованы на этапе «Рассмотрение в ДВГА»; здесь меняется только
   // наименование мероприятия, исполнитель и срок. Поэтому кнопка «Добавить объекты» для контура Б не показывается.
+  const amendNote = document.getElementById('gd-amend-note');
+  amendNote.style.display = 'none';
   if(!editable){
     lockedNote.style.display = amendmentActive ? 'none' : 'block';
     lockedNote.innerHTML = gdIsB
-      ? 'Документ уже направлен на согласование/утверждение. Изменить наименование мероприятия, исполнителя и срок можно только через приказ на внесение изменений.'
-      : 'Документ уже направлен на согласование/утверждение. Изменение состава — только через приказ на внесение изменений.';
+      ? 'Документ уже направлен на согласование/утверждение. Изменить наименование мероприятия, исполнителя и срок, а также исключить объекты можно только через приказ на внесение изменений. Включать новые объекты нельзя.'
+      : 'Документ уже направлен на согласование/утверждение. Изменение состава — только через приказ на внесение изменений, и только в виде исключения объектов. Включать новые объекты нельзя.';
+    if(amendmentActive){
+      amendNote.style.display = 'block';
+      amendNote.innerHTML = '<strong>Приказ на внесение изменений.</strong> Из перечня можно только исключить объекты (кнопка «×» в строке объекта). Включение новых объектов по приказу не допускается.';
+    }
   } else {
     lockedNote.style.display = 'none';
   }
@@ -7838,7 +8010,7 @@ function renderGroupDetailBody(){
     ${item.amendments.map(a=>`
       <div class="crit-row">
         <span class="crit-code mono">Приказ №${a.orderNo}</span>
-        <span class="crit-name">${a.action==='added' ? 'Включён' : 'Исключён'}: ${a.objName}</span>
+        <span class="crit-name">Исключён: ${a.objName}</span>
         <span class="crit-val">${a.date}</span>
       </div>`).join('')}
   ` : '';
@@ -7879,6 +8051,7 @@ function removeFromGroup(objIdx){
   renderPerechenDraft();
 }
 function startAddToGroup(){
+  if(amendmentActive) return;   // по приказу на внесение изменений включать объекты нельзя — только исключать
   editingGroup = { ...currentGroupDetail };
   document.getElementById('view-group-detail').style.display = 'none';
   document.getElementById('view-perechen-main').style.display = 'none';
@@ -7887,9 +8060,7 @@ function startAddToGroup(){
   document.getElementById('nav-check').classList.add('active');
   const item = semiAnnualLists[editingGroup.index];
   document.getElementById('edit-mode-banner').style.display = 'block';
-  document.getElementById('edit-mode-text').innerHTML = amendmentActive
-    ? `<strong>Приказ на внесение изменений:</strong> отметьте объекты для включения в «${item.name}».`
-    : `<strong>Режим добавления:</strong> отметьте объекты и нажмите «Добавить в «${item.name}»».`;
+  document.getElementById('edit-mode-text').innerHTML = `<strong>Режим добавления:</strong> отметьте объекты и нажмите «Добавить в «${item.name}»».`;
   if(currentContour !== item.contour) setContour(item.contour);
 }
 function cancelAddToGroup(){
