@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta name="saq-build" content="2026-10-22 ДВГА: протокол, доработка, приказ только на исключение; SP/ЕРАП">
+<meta name="saq-build" content="2026-10-22 ДВГА: протокол, доработка, приказ только на исключение, низкий риск не отбирается; SP/ЕРАП">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SAQ — СУР</title>
@@ -7238,7 +7238,7 @@ function dispatchSurDraft(){
     regionalBatches.push({
       region, year: d.year, contour: 'b',
       sentDate: dateStr, deadline: d.deadline, returnedDate: null, status: 'review', merged: false,
-      objects: objs.map(o => ({...o, kept: true}))
+      objects: objs.map(o => ({...o, kept: o.risk !== 'low'}))
     });
   });
   d.status = 'sent';
@@ -7545,7 +7545,9 @@ function closeDvgaBatchDetail(){
   openDvgaMain();
 }
 function toggleDvgaDecision(objIdx, checked){
-  regionalBatches[currentDvgaBatch].objects[objIdx].kept = checked;
+  const _o = regionalBatches[currentDvgaBatch].objects[objIdx];
+  if(_o.risk === 'low') return;   // низкий уровень риска — отбор ДВГА недоступен
+  _o.kept = checked;
   renderDvgaBatchDetail();
 }
 /* ---------- полная информация по объекту внутри карточки пачки ДВГА (развёрнутая строка) ---------- */
@@ -7634,7 +7636,7 @@ function renderDvgaBatchDetail(){
   document.getElementById('dvga-detail-extra').innerHTML = dvgaHistoryHtml(b) + dvgaProtocolBlockHtml(b, currentDvgaBatch);
   const rows = b.objects.map((o,oi)=>{
     const expanded = dvgaExpandedRow === oi;
-    let html = `<tr class="row" style="cursor:pointer;${o.kept?'':'opacity:.5;'}" onclick="toggleDvgaRow(${oi})">
+    let html = `<tr class="row" style="cursor:pointer;${(o.kept||o.risk==='low')?'':'opacity:.5;'}" onclick="toggleDvgaRow(${oi})">
       <td style="color:var(--text-muted);">${oi+1}</td>
       <td><strong>${o.name}</strong></td>
       <td class="mono" style="font-size:12px;">${o.bin||'—'}</td>
@@ -7642,7 +7644,9 @@ function renderDvgaBatchDetail(){
       <td>${o.category||o.kind||'—'}</td>
       <td style="text-align:right;font-weight:600;">${o.score!=null?o.score:'—'}</td>
       <td><span class="badge ${o.risk}">${labelFn[o.risk]||o.risk}</span></td>
-      <td onclick="event.stopPropagation()" style="text-align:center;">${editable
+      <td onclick="event.stopPropagation()" style="text-align:center;">${o.risk === 'low'
+        ? (editable ? '<div title="Объекты с низким уровнем риска не отбираются и в перечень не включаются"><input type="checkbox" disabled style="opacity:.35;cursor:not-allowed;"><div style="font-size:11px;color:var(--text-muted);margin-top:2px;white-space:nowrap;">не отбирается</div></div>' : '<span class="badge low">Исключён</span>')
+        : editable
         ? `<input type="checkbox" ${o.kept?'checked':''} onchange="toggleDvgaDecision(${oi}, this.checked)">`
         : (o.kept ? '<span class="badge sent">Оставлен</span>' : '<span class="badge low">Исключён</span>')}</td>
       <td style="text-align:right;"><i class="ti ti-chevron-${expanded?'up':'down'}" style="color:var(--text-muted);"></i></td>
@@ -8641,7 +8645,7 @@ renderTableHead();
 applyFilters();
 </script>
 <script src="saq-shell.js"></script>
-<script>document.documentElement.dataset.build="2026-10-22-dvga";</script>
+<script>document.documentElement.dataset.build="2026-10-22-low";</script>
 <script>
 (function(){
  const select=document.getElementById('demo-user');
