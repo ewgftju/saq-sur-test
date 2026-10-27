@@ -141,6 +141,15 @@
   .pipeline-step .ps-desc{font-size:11px;color:var(--text-2);line-height:1.35;}
   .pipeline-arrow{display:flex;align-items:center;color:var(--text-muted);font-size:16px;flex-shrink:0;}
   textarea{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:13px;resize:vertical;width:100%;}
+  .me-chk{width:16px;height:16px;accent-color:var(--accent);vertical-align:middle;cursor:pointer;}
+  tr.me-sel td{background:var(--accent-bg);}
+  tr.me-banner td{background:var(--surface-alt);font-weight:600;font-size:13px;}
+  .me-diff{color:var(--accent);font-weight:500;}
+  #me-table th{position:sticky;top:0;z-index:2;padding:9px 10px;}
+  #me-table table{font-size:12.5px;}
+  #me-table td{padding:8px 10px;}
+  #me-table .obj-sub{font-size:11.5px;}
+  .me-clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 </style>
 <link rel="stylesheet" href="saq-theme.css">
 <link rel="icon" type="image/x-icon" href="assets/brand/favicon.ico">
@@ -6461,9 +6470,10 @@ function isOblastLevelBody(name){
   // подстроки — тем же приёмом, что и OBLAST_PATTERNS выше.
   return !/района/i.test(name||'');
 }
-function engagementInfo(o){
+function engagementInfo(o, forcedType){
   const region = saObjRegion(o);
-  const auditType = o.auditType || 'Аудит соответствия';
+  // forcedType — тип аудита, выбранный пользователем вручную (item.objOverrides[..].auditType); иначе — по объекту
+  const auditType = forcedType || o.auditType || 'Аудит соответствия';
   const finReport = isFinReportAudit(auditType);
   const noRegion = !region || region === 'Регион не указан';
   // «АБП» (администратор бюджетных программ) — министерства, комитеты и другие республиканские органы:
@@ -6574,7 +6584,7 @@ function buildOfficialPerechenData(l){
   const byRegion = {};
   const regionOrder = [];
   l.objects.forEach((o, oi)=>{
-    const info = engagementInfo(o); // bucket: CENTRAL_BUCKET — для финотчётности АБП, «флагманских» областных аудитов и объектов без определённого региона (см. engagementInfo)
+    const info = objInfo(l, o, oi); // bucket: CENTRAL_BUCKET — для финотчётности АБП, «флагманских» областных аудитов и объектов без определённого региона (см. engagementInfo)
     const objOv = objOverrideFor(l, oi);
     const bucket = (objOv && objOv.owner) || info.bucket; // «Исполнитель» переопределён вручную НА ЭТОМ ОБЪЕКТЕ — КВГА забрала именно его мероприятие себе или отдала территориальному ДВГА
     if(!byRegion[bucket]){ byRegion[bucket] = []; regionOrder.push(bucket); }
@@ -6593,7 +6603,7 @@ function buildOfficialPerechenData(l){
     const groupsByKey = {};
     const groupOrder = [];
     byRegion[bucket].forEach(({o, oi})=>{
-      const info = engagementInfo(o);
+      const info = objInfo(l, o, oi);
       const auditType = info.auditType;
       const nameRegion = info.nameRegion; // регион для названия мероприятия — у «флагманских» областных групп свой для каждой области, поэтому разные области не сливаются в одну группу
       const natKey = engagementGroupKey(o, info); // исходный (естественный) ключ — для расчёта значений по умолчанию (см. objEffectiveNamePeriod)
@@ -6834,16 +6844,12 @@ async function exportApprovedPerechenOfficialDocx(l){
   downloadBlob(`perechen_obektov_gosaudita_${Y}_${safeName}.docx`, blob);
 }
 
-/* ---------- ручной ввод наименования мероприятия, срока проведения И исполнителя — отдельно НА КАЖДЫЙ ОБЪЕКТ ----------
-   Исполнитель, наименование и срок — ПОЛЕ У КАЖДОГО ОБЪЕКТА отдельно: пользователь редактирует их по одному
-   объекту за раз (см. renderGroupDetailEditableHtml), а итоговая группировка по мероприятиям
-   (renderGroupDetailReadonlyHtml, выгрузки) считается ПОСЛЕ — объекты с совпавшими (исполнитель, наименование,
-   срок) схлопываются в одно мероприятие, с разными — остаются отдельными строками. Если ничего не
-   редактировать, у объектов одного региона/типа аудита совпадают и значения по умолчанию — поэтому без правок
-   всё выглядит как раньше, одним мероприятием.
-   Раньше исполнитель был правкой на уровне целой естественной группы (натурального ключа) — единое массовое
-   решение «забрать весь регион». Это не совпадало с тем же принципом, который уже применён к наименованию и
-   сроку: пользователь явно попросил исполнителя тоже независимо по каждому объекту, без группового действия. */
+/* ---------- ручные значения типа аудита, наименования мероприятия, срока проведения и исполнителя — НА КАЖДЫЙ ОБЪЕКТ ----------
+   Хранятся в item.objOverrides[индекс объекта] = {auditType, name, period, owner} — только отличия от предложения
+   системы. Задаются массово по отмеченному набору объектов (см. модуль «массовое назначение» ниже: meApply); итоговая
+   группировка по мероприятиям (renderGroupDetailReadonlyHtml, выгрузки) считается ПОСЛЕ — объекты с совпавшими
+   (тип аудита, исполнитель, наименование, срок) схлопываются в одно мероприятие, с разными — остаются отдельными.
+   Если ничего не менять, значения по умолчанию у объектов одного региона/типа аудита совпадают — одно мероприятие. */
 function escAttr(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 }
@@ -6857,29 +6863,6 @@ function setObjOverride(oi, field, value){
   if(!item.objOverrides[oi]) item.objOverrides[oi] = {};
   item.objOverrides[oi][field] = value;
 }
-function setObjPeriodPart(oi, which, qyValue){
-  const [qStr, yStr] = qyValue.split('|');
-  const q = Number(qStr), y = Number(yStr);
-  const { index } = currentGroupDetail;
-  const item = semiAnnualLists[index];
-  const itemYear = Number(item.year) || CURRENT_YEAR;
-  const o = item.objects[oi];
-  const info = engagementInfo(o);
-  const natKey = engagementGroupKey(o, info);
-  const ov = objOverrideFor(item, oi);
-  const curPeriod = (ov && ov.period) || officialEngagementPeriod(info.auditType, natKey, itemYear);
-  const parsed = parsePeriodRange(curPeriod, itemYear);
-  if(which==='from'){ parsed.fromQ=q; parsed.fromY=y; } else { parsed.toQ=q; parsed.toY=y; }
-  setObjOverride(oi, 'period', formatPeriodRange(parsed.fromQ, parsed.fromY, parsed.toQ, parsed.toY));
-  renderGroupDetailBody();
-}
-function quarterYearSelectObj(oi, which, curQ, curY, itemYear){
-  const years = [itemYear, itemYear+1];
-  const opts = years.map(y => [1,2,3,4].map(q =>
-    `<option value="${q}|${y}" ${q===curQ && y===curY ? 'selected' : ''}>${q} квартал ${y}</option>`
-  ).join('')).join('');
-  return `<select onchange="setObjPeriodPart(${oi},'${which}',this.value)" style="width:100%;font-size:12.5px;height:30px;">${opts}</select>`;
-}
 function objEffectiveNamePeriod(item, o, oi, info, natKey, itemYear){
   // ЕДИНАЯ функция эффективных (исполнитель, имя, срок) объекта — используется и экраном (обе функции
   // группировки ниже), и выгрузкой (buildOfficialPerechenData), чтобы «после Готово группируются» выглядело
@@ -6888,11 +6871,11 @@ function objEffectiveNamePeriod(item, o, oi, info, natKey, itemYear){
   const name = (ov && ov.name) || officialEngagementName(info.nameRegion, info.auditType, info.quasi ? o.name : null);
   const period = (ov && ov.period) || officialEngagementPeriod(info.auditType, natKey, itemYear);
   const owner = (ov && ov.owner) || info.bucket;
-  return { name, period, owner };
+  return { name, period, owner, auditType: info.auditType };
 }
 function computeNaturalGroups(item){
   // Чисто автоматическая классификация (регион/тип аудита/флагман/КвазиГос), БЕЗ учёта наименования, срока и
-  // исполнителя — определяет только департамент-секции для экрана РЕДАКТИРОВАНИЯ (renderGroupDetailEditableHtml):
+  // исполнителя — определяет только естественную классификацию объектов (использовалась прежним экраном редактирования):
   // внутри одной такой группы объекты показываются плоским списком, каждый со своими собственными полями
   // наименования/срока/исполнителя. Карточка и её банер остаются на месте, даже если у кого-то из объектов
   // внутри исполнитель переопределён — это видно и правится у каждого объекта отдельно, группа как таковая не
@@ -6900,7 +6883,7 @@ function computeNaturalGroups(item){
   const groups = {};
   const order = [];
   (item.objects||[]).forEach((o, oi)=>{
-    const info = engagementInfo(o);
+    const info = objInfo(item, o, oi);
     const key = engagementGroupKey(o, info);
     if(!groups[key]){
       groups[key] = { key, region: info.bucket, nameRegion: info.nameRegion, auditType: info.auditType, quasi: info.quasi, objects: [], objIdx: [] };
@@ -6937,7 +6920,7 @@ function computeEngagementGroups(item){
   const groups = {};
   const order = [];
   (item.objects||[]).forEach((o, oi)=>{
-    const info = engagementInfo(o);
+    const info = objInfo(item, o, oi);
     const natKey = engagementGroupKey(o, info);
     const { name, period, owner } = objEffectiveNamePeriod(item, o, oi, info, natKey, itemYear);
     const subKey = natKey + '\u0001' + owner + '\u0001' + name + '\u0001' + period; // natKey уже включает |Q:бин для КвазиГос — такие субъекты и тут не сольются
@@ -7739,6 +7722,7 @@ function openGroupDetail(type, i){
   currentGroupDetail = { type, index: i };
   groupEditMode = false;
   amendmentActive = false;
+  meResetState();
   clearAllNav();
   hideAllScreenListViews();
   document.getElementById('view-group-detail').style.display = 'block';
@@ -7842,103 +7826,424 @@ function renderGroupDetailReadonlyHtml(item, itemYear, years){
   flush();
   return html;
 }
-function renderGroupDetailEditableHtml(item, itemYear, years, namesListId){
-  // Режим редактирования — ПЛОСКИЙ список объектов внутри каждой естественной группы (computeNaturalGroups):
-  // исполнитель, наименование и срок — ОТДЕЛЬНОЕ поле У КАЖДОГО ОБЪЕКТА, без группового («забрать весь
-  // регион целиком») действия — см. явное решение пользователя «только по объекту» после того, как
-  // групповой Исполнитель был признан недостаточным (жалоба «забыл выбор исполнителя» — наименование и срок
-  // уже были по объекту, а исполнитель отставал). После «Готово» объекты перегруппируются по факту
-  // совпадения (исполнитель, наименование, срок) — renderGroupDetailReadonlyHtml.
-  const groups = computeNaturalGroups(item);
-  const engNamesList = [...new Set(item.objects.map((o, oi)=>{
-    const info = engagementInfo(o);
-    const natKey = engagementGroupKey(o, info);
-    return objEffectiveNamePeriod(item, o, oi, info, natKey, itemYear).name;
-  }))];
-  let html = `<datalist id="${namesListId}">${engNamesList.map(n=>`<option value="${escAttr(n)}">`).join('')}</datalist>`;
-  let curBucket = null, bucketN = 1;
-  let bucketTotals = [0,0,0,0,0];
-  const flush = () => { if(curBucket !== null) html += engBucketTotalsRowHtml(curBucket, bucketTotals, true); };
-  groups.forEach(g=>{
-    if(g.region !== curBucket){
-      flush();
-      curBucket = g.region;
-      bucketN = 1;
-      bucketTotals = [0,0,0,0,0];
-      html += engBucketBannerHtml(curBucket);
-    }
-    const deptLabel = departmentNameFor(g.region) + (g.region===CENTRAL_BUCKET && g.nameRegion ? ` — ${g.nameRegion}` : '');
+/* ---------- РЕЖИМ РЕДАКТИРОВАНИЯ «СОСТАВА»: массовое назначение типа аудита, срока, наименования и исполнителя ----------
+   Объектов в перечне много, поэтому значения задаются не по одному объекту, а ПО НАБОРУ: пользователь отмечает объекты
+   (чекбоксами, по фильтру или целым ДВГА), задаёт тип аудита / срок / наименование мероприятия / исполнителя и нажимает
+   «Применить». Первоначальные значения предлагает система по правилам таблицы 7 постановки (engagementInfo,
+   officialEngagementName, officialEngagementPeriod) — вручную правятся только исключения. Хранение — прежнее:
+   item.objOverrides[индекс объекта] = {auditType, name, period, owner}; в нём лежат ТОЛЬКО отличия от предложения
+   системы (meNormalize убирает значение, если оно совпало с предложением). После «Готово» объекты с совпавшими
+   (тип, исполнитель, наименование, срок) показываются и выгружаются одним мероприятием — computeEngagementGroups.
+   Вид аудита всегда «Внутренний государственный аудит» и не меняется. */
+const ME_TYPES = ['Аудит соответствия', 'Аудит финансовой отчётности'];
+const ME_NAME_TPLS = [
+  { label: 'Соответствие', text: 'Государственный аудит соответствия планирования, использования бюджетных средств и активов государства по <регион>' },
+  { label: 'Фин. отчётность АБП', text: 'Государственный аудит финансовой отчётности администраторов бюджетных программ' },
+  { label: 'Деятельность <объект>', text: 'Государственный аудит деятельности <объект>' },
+];
+let meSel = new Set();      // индексы объектов (в item.objects), отмеченных чекбоксами
+let meFilter = { q: '', owner: '', kind: '', type: '', changed: false };
+let meUndo = [];            // снимки item.objOverrides перед каждым массовым действием
+let meBar = { type: '', fq: '', fy: '', tq: '', ty: '', name: '', owner: '', keep: false };
+let meMsg = null;           // { kind: 'ok' | 'err', text }
 
-    const engTotals = [0,0,0,0,0];
-    let groupHasOwnerChoice = false;
-    const rowsHtml = g.objects.map((o, idxInGroup)=>{
-      const oi = g.objIdx[idxInGroup];
-      const objOv = objOverrideFor(item, oi);
-      const defName = officialEngagementName(g.nameRegion, g.auditType, g.quasi ? o.name : null);
-      const defPeriod = officialEngagementPeriod(g.auditType, g.key, itemYear);
-      const nameVal = (objOv && objOv.name) || defName;
-      const periodVal = (objOv && objOv.period) || defPeriod;
-      const ownerVal = (objOv && objOv.owner) || g.region; // g.region === info.bucket любого объекта группы (общий 1-й сегмент ключа)
-      // Выбор Исполнителя считаем ПО СВОЕМУ РЕГИОНУ ОБЪЕКТА (altRegion), а не по g.nameRegion группы: внутри
-      // одной естественной группы altRegion может различаться — у финотчётности АБП ВСЕ объекты страны лежат
-      // в ОДНОЙ группе (bucket/nameRegion/auditType у них совпадают), но свой регион для возможного переноса
-      // на территориальный ДВГА — у каждого свой (см. engagementInfo.altRegion).
-      const oInfo = engagementInfo(o);
-      const ownerOptsForObj = engOwnerOptions(oInfo.altRegion);
-      if(ownerOptsForObj) groupHasOwnerChoice = true;
-      const parsedPeriod = parsePeriodRange(periodVal, itemYear);
-      const r = perechenObjTableRow(o, bucketN++, years, itemYear, amendmentActive, oi);
-      for(let vi=0; vi<4; vi++) engTotals[vi] += r.nums[vi];
-      engTotals[4] += r.total;
-      const editRow = `<tr class="eng-edit-row">
-        <td></td>
-        <td colspan="${amendmentActive ? 7 : 6}" style="padding:4px 12px 12px;background:var(--surface-alt);">
-          <div style="display:grid;grid-template-columns:2fr 1fr auto 1fr;gap:8px;align-items:center;">
-            <input type="text" list="${namesListId}" value="${escAttr(nameVal)}" placeholder="Наименование аудиторского мероприятия" title="Наименование аудиторского мероприятия" onchange="setObjOverride(${oi},'name',this.value)" style="width:100%;font-size:12.5px;height:30px;">
-            ${quarterYearSelectObj(oi,'from',parsedPeriod.fromQ,parsedPeriod.fromY,itemYear)}
-            <span style="color:var(--text-muted);font-size:12px;">—</span>
-            ${quarterYearSelectObj(oi,'to',parsedPeriod.toQ,parsedPeriod.toY,itemYear)}
-          </div>
-          ${ownerOptsForObj ? `
-          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-            <label style="font-size:11.5px;color:var(--text-muted);white-space:nowrap;">Исполнитель</label>
-            <select class="obj-owner-select" onchange="setObjOverride(${oi},'owner', engOwnerFromValueAttr(this.value));renderGroupDetailBody();" style="font-size:12.5px;height:28px;max-width:420px;flex:1;">
-              ${ownerOptsForObj.map(o=>`<option value="${engOwnerValueAttr(o.value)}" ${o.value===ownerVal?'selected':''}>${escAttr(o.label)}</option>`).join('')}
-            </select>
-          </div>` : ''}
-        </td>
-      </tr>`;
-      return r.html + editRow;
-    }).join('');
-    for(let vi=0; vi<5; vi++) bucketTotals[vi] += engTotals[vi];
-    const engCells = engTotals.map(v=>fmtRuAmount(v)||'—');
-
-    html += `
-    <div class="card" style="overflow-x:auto;margin-bottom:12px;padding:0;">
-      <div style="padding:12px 14px 10px;border-bottom:1px solid var(--border);">
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${deptLabel} · объектов: ${g.objects.length}</div>
-        <div class="field" style="margin:0;max-width:360px;"><label>Тип аудита <span style="font-weight:400;color:var(--text-muted);">(по объекту, автоматически)</span></label>${roBoxHtml(g.auditType)}</div>
-        <div style="margin-top:8px;font-size:11.5px;color:var(--text-muted);">Наименование мероприятия, срок${groupHasOwnerChoice ? ' и исполнитель' : ''} — отдельно по каждому объекту (в таблице ниже). После «Готово» объекты с одинаковыми значениями будут показаны одним мероприятием.</div>
-      </div>
-      <table>
-        ${perechenObjTableHead(years, itemYear, amendmentActive)}
-        <tbody>${rowsHtml}
-          <tr>
-            <td colspan="2" style="background:var(--accent-bg);color:var(--accent);font-weight:600;padding:9px 12px;">Всего по группе:</td>
-            <td style="text-align:right;background:var(--accent-bg);color:var(--accent);font-weight:600;padding:9px 12px;">${engCells[0]}</td>
-            <td style="text-align:right;background:var(--accent-bg);color:var(--accent);font-weight:600;padding:9px 12px;">${engCells[1]}</td>
-            <td style="text-align:right;background:var(--accent-bg);color:var(--accent);font-weight:600;padding:9px 12px;">${engCells[2]}</td>
-            <td style="text-align:right;background:var(--accent-bg);color:var(--accent);font-weight:600;padding:9px 12px;">${engCells[3]}</td>
-            <td style="text-align:right;background:var(--accent-bg);color:var(--accent);font-weight:600;padding:9px 12px;">${engCells[4]}</td>
-            <td style="background:var(--accent-bg);"></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>`;
-  });
-  flush();
-  return html;
+function meResetState(){
+  meSel = new Set();
+  meFilter = { q: '', owner: '', kind: '', type: '', changed: false };
+  meUndo = [];
+  meBar = { type: '', fq: '', fy: '', tq: '', ty: '', name: '', owner: '', keep: false };
+  meMsg = null;
 }
+function meItem(){
+  return currentGroupDetail ? semiAnnualLists[currentGroupDetail.index] : null;
+}
+function objInfo(item, o, oi){
+  const ov = objOverrideFor(item, oi);
+  return engagementInfo(o, ov && ov.auditType);
+}
+function meRows(item){
+  const Y = Number(item.year) || CURRENT_YEAR;
+  return (item.objects || []).map((o, oi) => {
+    const ov = objOverrideFor(item, oi) || {};
+    const info = engagementInfo(o, ov.auditType);
+    const natKey = engagementGroupKey(o, info);
+    const eff = objEffectiveNamePeriod(item, o, oi, info, natKey, Y);
+    return { o, oi, ov, info, type: info.auditType, name: eff.name, period: eff.period, owner: eff.owner,
+             changed: !!(ov.auditType || ov.name || ov.period || ov.owner) };
+  });
+}
+function meFiltered(rows){
+  const q = meFilter.q.trim().toLowerCase();
+  return rows.filter(r => {
+    if(q && !(String(r.o.name).toLowerCase().includes(q) || String(r.o.bin || '').includes(q))) return false;
+    if(meFilter.owner && engOwnerValueAttr(r.owner) !== meFilter.owner) return false;
+    if(meFilter.kind && r.o.kind !== meFilter.kind) return false;
+    if(meFilter.type && r.type !== meFilter.type) return false;
+    if(meFilter.changed && !r.changed) return false;
+    return true;
+  });
+}
+function meExpandName(tpl, o){
+  const r = saObjRegion(o);
+  const reg = (r && r !== 'Регион не указан') ? r : '';
+  let s = tpl;
+  if(/<регион>/i.test(s)){
+    s = reg ? s.replace(/<регион>/gi, regionDative(reg)) : s.replace(/\s+по\s+<регион>/gi, '').replace(/<регион>/gi, '');
+  }
+  return s.replace(/<объект>/gi, o.name).trim();
+}
+function meNormalize(item, oi){
+  // Значение, заданное пользователем, сохраняется как «заданное вручную», даже если совпало с предложением
+  // системы: иначе оно теряло бы защиту режима «не перезаписывать заданные вручную». Убираем только пустые записи.
+  const ov = item.objOverrides && item.objOverrides[oi];
+  if(ov && !Object.keys(ov).length) delete item.objOverrides[oi];
+}
+function mePushUndo(item){
+  meUndo.push(JSON.stringify(item.objOverrides || {}));
+  if(meUndo.length > 20) meUndo.shift();
+}
+
+/* ----- оболочка режима редактирования (строится один раз на renderGroupDetailBody; таблица и счётчики перерисовываются точечно) ----- */
+function meShellHtml(item){
+  const Y = Number(item.year) || CURRENT_YEAR;
+  const qOpts = v => '<option value="">кв.</option>' + [1,2,3,4].map(q => `<option value="${q}" ${String(v)===String(q)?'selected':''}>${q} кв.</option>`).join('');
+  const yOpts = v => '<option value="">год</option>' + [Y, Y+1].map(y => `<option value="${y}" ${String(v)===String(y)?'selected':''}>${y}</option>`).join('');
+  const typeOpts = '<option value="">не менять</option>' + ME_TYPES.map(t => `<option value="${t}" ${meBar.type===t?'selected':''}>${t}</option>`).join('');
+  const ownerOpts = `<option value="" ${meBar.owner===''?'selected':''}>не менять</option>
+    <option value="C" ${meBar.owner==='C'?'selected':''}>${CENTRAL_DEPT_NAME}</option>
+    <option value="R" ${meBar.owner==='R'?'selected':''}>ДВГА региона объекта</option>`;
+  return `
+    <div class="note" style="margin-bottom:10px;">Значения предложены системой по правилам распределения. Отметьте объекты, задайте тип аудита, срок и наименование — меняются только заполненные поля. После «Готово» объекты с одинаковыми значениями показываются одним мероприятием.</div>
+    <div id="me-summary" style="font-size:13px;color:var(--text-2);margin:0 0 10px;"></div>
+    <div class="toolbar" style="margin:0 0 10px;">
+      <input type="text" id="me-q" placeholder="Поиск по наименованию или БИН" value="${escAttr(meFilter.q)}" oninput="meSetFilter('q', this.value)" style="max-width:270px;">
+      <select id="me-f-owner" onchange="meSetFilter('owner', this.value)" style="width:270px;"></select>
+      <select id="me-f-kind" onchange="meSetFilter('kind', this.value)">
+        <option value="">Категория: все</option>
+        ${['ГУ','АБП','КвазиГос'].map(k => `<option value="${k}" ${meFilter.kind===k?'selected':''}>${k}</option>`).join('')}
+      </select>
+      <select id="me-f-type" onchange="meSetFilter('type', this.value)">
+        <option value="">Тип аудита: все</option>
+        ${ME_TYPES.map(t => `<option value="${t}" ${meFilter.type===t?'selected':''}>${t}</option>`).join('')}
+      </select>
+      <label style="font-size:12.5px;color:var(--text-2);display:inline-flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" class="me-chk" id="me-f-changed" ${meFilter.changed?'checked':''} onchange="meSetFilter('changed', this.checked)"> Только заданные вручную</label>
+    </div>
+    <div id="me-chips" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px;"></div>
+
+    <div class="selection-bar" style="flex-direction:column;align-items:stretch;gap:12px;">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <b>Выбрано объектов: <span id="me-selcount">0</span></b>
+        <a id="me-selall" style="color:var(--accent);font-size:12.5px;cursor:pointer;" onclick="meSelectAllFiltered()">Выбрать все по фильтру</a>
+        <a style="color:var(--accent);font-size:12.5px;cursor:pointer;" onclick="meClearSel()">Снять выбор</a>
+        <span style="margin-left:auto;font-size:12px;color:var(--text-muted);">Заполните только те поля, которые нужно изменить</span>
+      </div>
+      <div style="display:grid;grid-template-columns:200px minmax(330px,1.15fr) minmax(300px,1.5fr) 190px;gap:12px;align-items:start;">
+        <div class="field" style="margin:0;"><label>Тип аудита</label>
+          <select id="me-type" style="width:100%;" onchange="meBarSync()">${typeOpts}</select></div>
+        <div class="field" style="margin:0;"><label>Срок проведения</label>
+          <div style="display:flex;gap:5px;align-items:center;">
+            <select id="me-fq" onchange="meBarSync()" style="width:74px;padding:0 6px;">${qOpts(meBar.fq)}</select><select id="me-fy" onchange="meBarSync()" style="width:84px;padding:0 6px;">${yOpts(meBar.fy)}</select>
+            <span style="color:var(--text-muted);">—</span>
+            <select id="me-tq" onchange="meBarSync()" style="width:74px;padding:0 6px;">${qOpts(meBar.tq)}</select><select id="me-ty" onchange="meBarSync()" style="width:84px;padding:0 6px;">${yOpts(meBar.ty)}</select>
+          </div>
+          <div style="font-size:11.5px;color:var(--text-muted);margin-top:5px;line-height:1.9;">быстрый выбор:
+            ${[1,2,3,4].map(q => `<a class="tag-mini" style="cursor:pointer;" onclick="mePresetQ(${q})">${q} квартал</a>`).join(' ')}
+            <a class="tag-mini" style="cursor:pointer;" onclick="mePresetFin()">2 кв. – 1 кв. след. года</a></div></div>
+        <div class="field" style="margin:0;"><label>Наименование аудиторского мероприятия</label>
+          <input type="text" id="me-name" value="${escAttr(meBar.name)}" placeholder="Не менять" oninput="meBarSync()" style="width:100%;">
+          <div style="font-size:11.5px;color:var(--text-muted);margin-top:5px;line-height:1.9;">«&lt;регион&gt;» подставится по каждому объекту в дательном падеже. Шаблоны:
+            ${ME_NAME_TPLS.map((t, i) => `<a class="tag-mini" style="cursor:pointer;" onclick="meSetNameTpl(${i})">${escAttr(t.label)}</a>`).join(' ')}</div></div>
+        <div class="field" style="margin:0;"><label>Исполнитель</label>
+          <select id="me-owner" style="width:100%;" onchange="meBarSync()">${ownerOpts}</select></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="me-apply" onclick="meApply()">Применить</button>
+        <button class="btn" id="me-reset" onclick="meResetSelected()" title="Вернуть значения, предложенные системой"><i class="ti ti-arrow-back-up"></i>Сбросить к предложению системы</button>
+        <button class="btn" id="me-undo" onclick="meUndoLast()"><i class="ti ti-arrow-back"></i>Отменить последнее действие</button>
+        <label style="font-size:12.5px;display:inline-flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" class="me-chk" id="me-keep" ${meBar.keep?'checked':''} onchange="meBarSync()"> не перезаписывать заданные вручную</label>
+        <span id="me-hint" style="font-size:12px;color:var(--text-muted);"></span>
+      </div>
+      <div id="me-msg" style="display:none;font-size:12.5px;border-radius:8px;padding:8px 12px;"></div>
+    </div>
+    <div class="card" style="overflow:auto;max-height:64vh;margin-bottom:12px;padding:0;"><div id="me-table"></div></div>
+    <div id="me-foot" style="font-size:12.5px;color:var(--text-2);"></div>`;
+}
+
+/* ----- перерисовка динамических частей ----- */
+function meRenderAll(){
+  const item = meItem();
+  if(!item) return;
+  const rows = meRows(item);
+  const filtered = meFiltered(rows);
+  // сводка
+  const engCount = computeEngagementGroups(item).length;
+  const changedCount = rows.filter(r => r.changed).length;
+  document.getElementById('me-summary').innerHTML = `Аудиторских мероприятий в перечне: <b style="color:var(--text);">${engCount}</b> &nbsp;·&nbsp; Заданы вручную: <b style="color:var(--text);">${changedCount}</b> из ${rows.length}`;
+  // фильтр «Исполнитель»: список по текущему составу
+  const ownerCounts = new Map();
+  rows.forEach(r => ownerCounts.set(r.owner, (ownerCounts.get(r.owner) || 0) + 1));
+  const owners = [...ownerCounts.keys()].sort((a, b) => {
+    if(a === CENTRAL_BUCKET) return -1;
+    if(b === CENTRAL_BUCKET) return 1;
+    return regionAlphaKey(a).localeCompare(regionAlphaKey(b), 'ru');
+  });
+  document.getElementById('me-f-owner').innerHTML = '<option value="">Исполнитель: все</option>' +
+    owners.map(ow => { const tok = engOwnerValueAttr(ow); return `<option value="${escAttr(tok)}" ${meFilter.owner===tok?'selected':''}>${escAttr(departmentNameFor(ow))} (${ownerCounts.get(ow)})</option>`; }).join('');
+  // чипы активных фильтров
+  const chips = [];
+  if(meFilter.owner) chips.push(['owner', 'Исполнитель: ' + departmentNameFor(engOwnerFromValueAttr(meFilter.owner))]);
+  if(meFilter.kind) chips.push(['kind', 'Категория: ' + meFilter.kind]);
+  if(meFilter.type) chips.push(['type', meFilter.type]);
+  if(meFilter.changed) chips.push(['changed', 'Только заданные вручную']);
+  if(meFilter.q.trim()) chips.push(['q', 'Поиск: ' + meFilter.q.trim()]);
+  document.getElementById('me-chips').innerHTML = chips.map(([k, t]) =>
+    `<span class="filter-chip">${escAttr(t)}<span class="chip-x" onclick="meClearFilter('${k}')">×</span></span>`).join('');
+  document.getElementById('me-table').innerHTML = meTableHtml(item, rows, filtered);
+  document.querySelectorAll('#me-table input[data-me-state="1"]').forEach(el => { el.indeterminate = true; });
+  document.getElementById('me-foot').textContent = `Показано объектов: ${filtered.length} из ${rows.length}`;
+  meUpdateBar(rows, filtered);
+}
+function meTableHtml(item, rows, filtered){
+  if(!filtered.length) return '<div style="text-align:center;color:var(--text-muted);padding:26px;">По заданным условиям объектов нет</div>';
+  const byOwner = new Map();
+  filtered.forEach(r => { if(!byOwner.has(r.owner)) byOwner.set(r.owner, []); byOwner.get(r.owner).push(r); });
+  const owners = [...byOwner.keys()].sort((a, b) => {
+    if(a === CENTRAL_BUCKET) return -1;
+    if(b === CENTRAL_BUCKET) return 1;
+    return regionAlphaKey(a).localeCompare(regionAlphaKey(b), 'ru');
+  });
+  const totalByOwner = new Map();
+  rows.forEach(r => totalByOwner.set(r.owner, (totalByOwner.get(r.owner) || 0) + 1));
+  const amend = amendmentActive;
+  const cols = 8 + (amend ? 1 : 0);
+  let body = '';
+  owners.forEach(ow => {
+    const list = byOwner.get(ow).slice().sort((a, b) =>
+      (isFinReportAudit(a.type) - isFinReportAudit(b.type)) || String(a.o.name).localeCompare(String(b.o.name), 'ru'));
+    const selN = list.filter(r => meSel.has(r.oi)).length;
+    const state = selN === 0 ? 0 : (selN === list.length ? 2 : 1);
+    const changedN = list.filter(r => r.changed).length;
+    const total = totalByOwner.get(ow) || 0;
+    body += `<tr class="me-banner"><td style="width:34px;"><input type="checkbox" class="me-chk" data-me-state="${state}" data-owner="${escAttr(engOwnerValueAttr(ow))}" ${state===2?'checked':''} onclick="meToggleOwner(this.dataset.owner, this.checked)" title="Отметить все объекты исполнителя (с учётом фильтра)"></td>
+      <td colspan="${cols-1}">${escAttr(departmentNameFor(ow))} <span style="font-weight:400;color:var(--text-muted);font-size:12px;">· объектов: ${list.length}${list.length !== total ? ' из ' + total : ''}${changedN ? ' · заданы вручную: ' + changedN : ''}</span></td></tr>`;
+    list.forEach((r, i) => {
+      const sel = meSel.has(r.oi);
+      const o = r.o, ov = r.ov;
+      const baseType = o.auditType || 'Аудит соответствия';
+      const reg = saObjRegion(o);
+      const diffType = ov.auditType ? `<span class="me-diff" title="Задано вручную; по правилам: ${escAttr(baseType)}">${escAttr(r.type)}</span>` : escAttr(r.type);
+      const diffName = ov.name ? `<span class="me-diff">${escAttr(r.name)}</span>` : escAttr(r.name);
+      const diffPeriod = ov.period ? `<span class="me-diff">${escAttr(r.period)}</span>` : escAttr(r.period);
+      body += `<tr class="${sel ? 'me-sel' : ''}" style="cursor:pointer;" onclick="meRowClick(event, ${r.oi})">
+        <td><input type="checkbox" class="me-chk" ${sel ? 'checked' : ''} onclick="event.stopPropagation(); meToggle(${r.oi})"></td>
+        <td style="color:var(--text-muted);width:34px;">${i + 1}</td>
+        <td style="min-width:240px;"><strong>${escAttr(o.name)}</strong><div class="obj-sub">${reg && reg !== 'Регион не указан' ? escAttr(reg) : 'регион не определён'}${o.bin ? ' · БИН ' + escAttr(o.bin) : ''}</div></td>
+        <td style="width:70px;white-space:nowrap;">${escAttr(o.kind || '—')}</td>
+        <td style="width:120px;">${diffType}</td>
+        <td style="min-width:190px;"><div class="me-clamp" title="${escAttr(r.name)}">${diffName}</div></td>
+        <td style="width:120px;">${diffPeriod}</td>
+        <td style="width:96px;white-space:nowrap;">${r.changed
+          ? `<span class="badge sent">вручную</span> <button class="icon-btn" style="display:inline-flex;width:24px;height:24px;vertical-align:middle;" title="Сбросить к предложению системы" onclick="event.stopPropagation(); meResetOne(${r.oi})"><i class="ti ti-arrow-back-up"></i></button>`
+          : '<span class="tag-mini">по правилам</span>'}</td>
+        ${amend ? `<td style="width:44px;"><button class="btn" style="height:26px;padding:0 8px;font-size:11.5px;" onclick="event.stopPropagation(); removeFromGroup(${r.oi})" title="Исключить из перечня"><i class="ti ti-x"></i></button></td>` : ''}
+      </tr>`;
+    });
+  });
+  const allSel = filtered.length > 0 && filtered.every(r => meSel.has(r.oi));
+  const someSel = filtered.some(r => meSel.has(r.oi));
+  return `<table>
+    <thead><tr>
+      <th style="width:34px;"><input type="checkbox" class="me-chk" ${allSel ? 'checked' : ''} ${someSel && !allSel ? 'data-me-state="1"' : ''} onclick="meToggleAllFiltered(this.checked)" title="Отметить все объекты по фильтру"></th>
+      <th style="width:34px;">№</th><th>Объект государственного аудита</th><th>Категория</th><th>Тип аудита</th>
+      <th>Наименование мероприятия</th><th>Срок проведения</th><th>Значения</th>${amend ? '<th></th>' : ''}
+    </tr></thead><tbody>${body}</tbody></table>`;
+}
+function meUpdateBar(rows, filtered){
+  const item = meItem();
+  if(!item) return;
+  rows = rows || meRows(item);
+  filtered = filtered || meFiltered(rows);
+  const n = meSel.size;
+  document.getElementById('me-selcount').textContent = n;
+  document.getElementById('me-selall').textContent = `Выбрать все по фильтру (${filtered.length})`;
+  const apply = document.getElementById('me-apply');
+  apply.textContent = n ? `Применить к ${n} ${n === 1 ? 'объекту' : 'объектам'}` : 'Применить';
+  apply.disabled = !n; apply.style.opacity = n ? '1' : '.5'; apply.style.cursor = n ? 'pointer' : 'not-allowed';
+  const reset = document.getElementById('me-reset');
+  const resetable = rows.filter(r => meSel.has(r.oi) && r.changed).length;
+  reset.disabled = !resetable; reset.style.opacity = resetable ? '1' : '.5'; reset.style.cursor = resetable ? 'pointer' : 'not-allowed';
+  const undo = document.getElementById('me-undo');
+  undo.disabled = !meUndo.length; undo.style.opacity = meUndo.length ? '1' : '.5'; undo.style.cursor = meUndo.length ? 'pointer' : 'not-allowed';
+  undo.innerHTML = `<i class="ti ti-arrow-back"></i>Отменить последнее действие${meUndo.length ? ' (' + meUndo.length + ')' : ''}`;
+  // подсказка о перезаписи
+  const hint = document.getElementById('me-hint');
+  const periodSet = !!(meBar.fq || meBar.fy || meBar.tq || meBar.ty);
+  const anyField = !!(meBar.type || periodSet || meBar.name.trim() || meBar.owner);
+  if(!n){ hint.textContent = 'Отметьте объекты в таблице.'; }
+  else if(!anyField){ hint.textContent = 'Заполните хотя бы одно поле.'; }
+  else {
+    const clash = rows.filter(r => meSel.has(r.oi) &&
+      ((meBar.type && r.ov.auditType) || (periodSet && r.ov.period) || (meBar.name.trim() && r.ov.name) || (meBar.owner && r.ov.owner))).length;
+    hint.textContent = clash
+      ? (meBar.keep ? `У ${clash} из ${n} эти поля уже заданы вручную — останутся как есть.` : `У ${clash} из ${n} эти поля уже заданы вручную — будут заменены. Действие можно отменить.`)
+      : 'Действие можно отменить.';
+  }
+  const msg = document.getElementById('me-msg');
+  if(meMsg){
+    msg.style.display = 'block';
+    msg.textContent = meMsg.text;
+    msg.style.background = meMsg.kind === 'err' ? 'var(--danger-bg)' : 'var(--success-bg)';
+    msg.style.color = meMsg.kind === 'err' ? 'var(--danger-text)' : 'var(--success-text)';
+  } else { msg.style.display = 'none'; }
+}
+
+/* ----- фильтры и отметка объектов ----- */
+function meSetFilter(key, value){ meFilter[key] = value; meRenderAll(); }
+function meClearFilter(key){
+  meFilter[key] = key === 'changed' ? false : '';
+  const ctl = { q: 'me-q', owner: 'me-f-owner', kind: 'me-f-kind', type: 'me-f-type' }[key];
+  if(ctl) document.getElementById(ctl).value = '';
+  if(key === 'changed') document.getElementById('me-f-changed').checked = false;
+  meRenderAll();
+}
+function meToggle(oi){
+  if(meSel.has(oi)) meSel.delete(oi); else meSel.add(oi);
+  meMsg = null;
+  meRenderAll();
+}
+function meRowClick(ev, oi){
+  if(ev.target.closest('button, input, a, select')) return;
+  meToggle(oi);
+}
+function meToggleOwner(tok, checked){
+  const rows = meFiltered(meRows(meItem())).filter(r => engOwnerValueAttr(r.owner) === tok);
+  rows.forEach(r => { if(checked) meSel.add(r.oi); else meSel.delete(r.oi); });
+  meMsg = null; meRenderAll();
+}
+function meToggleAllFiltered(checked){
+  meFiltered(meRows(meItem())).forEach(r => { if(checked) meSel.add(r.oi); else meSel.delete(r.oi); });
+  meMsg = null; meRenderAll();
+}
+function meSelectAllFiltered(){ meToggleAllFiltered(true); }
+function meClearSel(){ meSel.clear(); meMsg = null; meRenderAll(); }
+
+/* ----- поля панели «Применить» ----- */
+function meBarSync(){
+  meBar.type = document.getElementById('me-type').value;
+  meBar.fq = document.getElementById('me-fq').value; meBar.fy = document.getElementById('me-fy').value;
+  meBar.tq = document.getElementById('me-tq').value; meBar.ty = document.getElementById('me-ty').value;
+  meBar.name = document.getElementById('me-name').value;
+  meBar.owner = document.getElementById('me-owner').value;
+  meBar.keep = document.getElementById('me-keep').checked;
+  meMsg = null;
+  meUpdateBar();
+}
+function meSetPeriodControls(fq, fy, tq, ty){
+  document.getElementById('me-fq').value = fq; document.getElementById('me-fy').value = fy;
+  document.getElementById('me-tq').value = tq; document.getElementById('me-ty').value = ty;
+  meBarSync();
+}
+function mePresetQ(q){
+  const Y = Number(meItem().year) || CURRENT_YEAR;
+  meSetPeriodControls(q, Y, q, Y);
+}
+function mePresetFin(){
+  const Y = Number(meItem().year) || CURRENT_YEAR;
+  meSetPeriodControls(2, Y, 1, Y + 1);
+}
+function meSetNameTpl(i){
+  document.getElementById('me-name').value = ME_NAME_TPLS[i].text;
+  meBarSync();
+}
+
+/* ----- действия ----- */
+function meApply(){
+  const item = meItem();
+  if(!item || !meSel.size) return;
+  meBarSync();
+  const Y = Number(item.year) || CURRENT_YEAR;
+  const periodParts = [meBar.fq, meBar.fy, meBar.tq, meBar.ty];
+  const periodSet = periodParts.some(Boolean);
+  const nameTpl = meBar.name.trim();
+  if(!meBar.type && !periodSet && !nameTpl && !meBar.owner){
+    meMsg = { kind: 'err', text: 'Заполните хотя бы одно поле: тип аудита, срок, наименование или исполнителя.' };
+    meUpdateBar(); return;
+  }
+  let periodStr = null;
+  if(periodSet){
+    if(!periodParts.every(Boolean)){
+      meMsg = { kind: 'err', text: 'Срок: укажите и начало, и окончание (квартал и год).' };
+      meUpdateBar(); return;
+    }
+    const fromV = Number(meBar.fy) * 4 + Number(meBar.fq), toV = Number(meBar.ty) * 4 + Number(meBar.tq);
+    if(fromV > toV){
+      meMsg = { kind: 'err', text: 'Срок: начало не может быть позже окончания.' };
+      meUpdateBar(); return;
+    }
+    periodStr = formatPeriodRange(Number(meBar.fq), Number(meBar.fy), Number(meBar.tq), Number(meBar.ty));
+  }
+  mePushUndo(item);
+  if(!item.objOverrides) item.objOverrides = {};
+  let touched = 0, kept = 0, noRegion = 0;
+  [...meSel].sort((a, b) => a - b).forEach(oi => {
+    const o = item.objects[oi];
+    if(!o) return;
+    if(!item.objOverrides[oi]) item.objOverrides[oi] = {};
+    const ov = item.objOverrides[oi];
+    let did = false;
+    if(meBar.type){
+      if(meBar.keep && ov.auditType) kept++; else { ov.auditType = meBar.type; did = true; }
+    }
+    // название, срок и исполнитель считаются от УЖЕ применённого типа (значения по умолчанию зависят от типа аудита)
+    const info = engagementInfo(o, ov.auditType);
+    if(periodStr){
+      if(meBar.keep && ov.period) kept++; else { ov.period = periodStr; did = true; }
+    }
+    if(nameTpl){
+      if(meBar.keep && ov.name) kept++; else { ov.name = meExpandName(nameTpl, o); did = true; }
+    }
+    if(meBar.owner){
+      if(meBar.keep && ov.owner) kept++;
+      else if(!info.altRegion) noRegion++;           // у объекта нет региона — исполнитель всегда КВГА, выбора нет
+      else { ov.owner = meBar.owner === 'C' ? CENTRAL_BUCKET : info.altRegion; did = true; }
+    }
+    if(did) touched++;
+    meNormalize(item, oi);
+  });
+  const parts = [];
+  if(meBar.type) parts.push('тип — ' + meBar.type.toLowerCase());
+  if(periodStr) parts.push('срок — ' + periodStr);
+  if(nameTpl) parts.push('наименование');
+  if(meBar.owner) parts.push('исполнитель');
+  const engCount = computeEngagementGroups(item).length;
+  meMsg = { kind: 'ok', text: `Применено к ${touched} из ${meSel.size} (${parts.join('; ')}).${kept ? ' Не тронуто заданных вручную значений: ' + kept + '.' : ''}${noRegion ? ' Исполнитель не меняется у ' + noRegion + ' (регион объекта не определён).' : ''} Аудиторских мероприятий в перечне: ${engCount}.` };
+  meRenderAll();
+}
+function meResetSelected(){
+  const item = meItem();
+  if(!item || !meSel.size) return;
+  mePushUndo(item);
+  let n = 0;
+  meSel.forEach(oi => { if(item.objOverrides && item.objOverrides[oi]){ delete item.objOverrides[oi]; n++; } });
+  meMsg = { kind: 'ok', text: `Возвращены значения по правилам распределения у ${n} объект(ов).` };
+  meRenderAll();
+}
+function meResetOne(oi){
+  const item = meItem();
+  if(!item || !item.objOverrides || !item.objOverrides[oi]) return;
+  mePushUndo(item);
+  delete item.objOverrides[oi];
+  meMsg = { kind: 'ok', text: 'Значения объекта возвращены к предложению системы.' };
+  meRenderAll();
+}
+function meUndoLast(){
+  const item = meItem();
+  if(!item || !meUndo.length) return;
+  item.objOverrides = JSON.parse(meUndo.pop());
+  meMsg = { kind: 'ok', text: 'Последнее действие отменено.' };
+  meRenderAll();
+}
+
 function renderGroupDetailBody(){
   const { index } = currentGroupDetail;
   const item = semiAnnualLists[index];
@@ -7961,15 +8266,17 @@ function renderGroupDetailBody(){
     // выгрузках — см. buildOfficialPerechenData, откуда взяты те же суммы (officialAmountForYear). Это
     // относится и к уже утверждённым перечням — вид не меняется по статусу, то, что видно на экране, и есть
     // то, что выгружается.
-    // В РЕЖИМЕ РЕДАКТИРОВАНИЯ наименование и срок задаются отдельно на каждый объект (renderGroupDetailEditableHtml);
+    // В РЕЖИМЕ РЕДАКТИРОВАНИЯ тип аудита, наименование, срок и исполнитель задаются массово по отмеченным объектам (meShellHtml);
     // ПОСЛЕ «Готово» объекты с совпавшими (исполнитель, наименование, срок) схлопываются в одно мероприятие —
     // renderGroupDetailReadonlyHtml, через ту же группировку (computeEngagementGroups), что использует и выгрузка.
     const itemYear = Number(item.year) || CURRENT_YEAR;
     const years = [itemYear-3, itemYear-2, itemYear-1];
-    const namesListId = `eng-names-${index}`;
-    document.getElementById('gd-objects').innerHTML = showX
-      ? renderGroupDetailEditableHtml(item, itemYear, years, namesListId)
-      : renderGroupDetailReadonlyHtml(item, itemYear, years);
+    if(showX){
+      document.getElementById('gd-objects').innerHTML = meShellHtml(item);
+      meRenderAll();
+    } else {
+      document.getElementById('gd-objects').innerHTML = renderGroupDetailReadonlyHtml(item, itemYear, years);
+    }
   } else {
     const objRows = (item.objects && item.objects.length)
       ? item.objects.map((o,oi)=>objTableRow(o, oi, labelFn, showX)).join('')
@@ -8023,6 +8330,7 @@ function renderGroupDetailBody(){
 function toggleGroupEdit(){
   const { index } = currentGroupDetail;
   const item = semiAnnualLists[index];
+  meResetState();
   if(isGroupEditable(item)){
     groupEditMode = !groupEditMode;
   } else {
@@ -8042,6 +8350,12 @@ function removeFromGroup(objIdx){
   const { index } = currentGroupDetail;
   const item = semiAnnualLists[index];
   if(item.objects.length <= 1 && !confirm('Это последний объект в составе. Убрать и оставить пустым?')) return;
+  if(item.objOverrides){
+    const shifted = {};
+    Object.keys(item.objOverrides).forEach(k => { const n = +k; if(n < objIdx) shifted[n] = item.objOverrides[k]; else if(n > objIdx) shifted[n-1] = item.objOverrides[k]; });
+    item.objOverrides = shifted;
+  }
+  meSel = new Set(); meUndo = [];
   const removed = item.objects.splice(objIdx, 1)[0];
   if(removed){
     delete listByObject[removed.name];
@@ -8645,7 +8959,7 @@ renderTableHead();
 applyFilters();
 </script>
 <script src="saq-shell.js"></script>
-<script>document.documentElement.dataset.build="2026-10-22-low";</script>
+<script>document.documentElement.dataset.build="2026-10-27-mass-assign";</script>
 <script>
 (function(){
  const select=document.getElementById('demo-user');
