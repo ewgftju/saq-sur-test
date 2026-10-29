@@ -1191,11 +1191,28 @@ function mpOpenObj(name, year){ // карточка объекта из любо
   if(String(mpYear)!==String(year)){ const ys=document.getElementById('mp-year'); if(ys) ys.value=String(year); mpSetYear(String(year)); }
   const idx = currentData.indexOf(o); if(idx>=0) openDetail('subject', idx);
 }
+/* ---------- плитки «Проверки» совпадают с таблицей; «Исключено (нет данных)» — по году последнего запуска ---------- */
+const MP_EXCL_META = [ // демо-атрибуты объектов из notCalculatedPool (по порядку): регион, вид, тип аудита, год расчёта
+  {region:'Жамбылская область', kind:'ГУ', type:'Аудит соответствия', year:'2026'},
+  {region:'Жамбылская область', kind:'КвазиГос', type:'Аудит соответствия', year:'2026'},
+  {region:'область Ұлытау', kind:'ГУ', type:'Аудит финансовой отчётности', year:'2025'},
+  {region:'г. Астана', kind:'КвазиГос', type:'Аудит соответствия', year:'2024'},
+  {region:'Карагандинская область', kind:'ГУ', type:'Аудит соответствия', year:'2026'},
+];
+let mpExclRun = {}; // год → объекты, исключённые при последнем запуске оценки рисков за этот год
+function mpExcludedFor(y){ return notCalculatedPool.map((r,i)=>Object.assign({}, r, MP_EXCL_META[i]||{})).filter(r=>String(r.year)===String(y)); }
+function mpExclVisible(){ // исключённые объекты с учётом фильтров таблицы (уровня риска у них нет)
+  const g = id => { const e=document.getElementById(id); return e ? e.value : ''; };
+  const type=g('f-type'), risk=g('f-risk'), region=g('f-region'), kind=g('f-kind'), q=g('f-search').trim().toLowerCase();
+  if(risk) return [];
+  return notCalculatedList.filter(r => (!type||r.type===type) && (!region||r.region===region) && (!kind||r.kind===kind) && (!q||r.object.toLowerCase().includes(q)));
+}
 function mpSetYear(v){
   mpYear = v;
   if(currentContour==='b' && perechenMode==='subjects'){
     currentData = dataEVGA.filter(o=>o.year===v);
-    renderTableHead(); applyFilters(); renderKpis();
+    notCalculatedList = mpExclRun[v] || [];
+    renderTableHead(); applyFilters(); renderNotCalculated();
   }
 }
 
@@ -1296,6 +1313,17 @@ document.addEventListener('DOMContentLoaded', ()=>{ const s=document.getElementB
     if(m && m.style.display==='block' && typeof renderDvgaMain==='function') renderDvgaMain();
     if(d && d.style.display==='block' && typeof renderDvgaBatchDetail==='function') renderDvgaBatchDetail();
   });
+});
+
+/* ---------- стартовое состояние = результат расчёта: повторный запуск с теми же данными не меняет цифры (RQ.SAQ.SUR.17.02) ---------- */
+document.addEventListener('DOMContentLoaded', ()=>{
+  try{
+    applyAuditGapProposal(); applySalykCheckProposal(); applyRotationProposal();
+    ['2024','2025','2026'].forEach(y=>{ mpExclRun[y] = mpExcludedFor(y); });
+    notCalculatedList = mpExclRun[mpYear] || [];
+    lastCalcEvga = { date: `${demoTodayStr()}, 09:00`, count: dataEVGA.filter(o=>o.year===mpYear).length + notCalculatedList.length };
+    renderEvgaCalcStatus(); applyFilters(); renderNotCalculated();
+  }catch(e){ console.error('init calc', e); }
 });
 
 </script>
@@ -4944,7 +4972,7 @@ function runCandidateCheck(){
   }, 900);
 }
 function renderEvgaCalcStatus(){
-  document.getElementById('evga-calc-status-line').textContent = `Последний расчёт: ${lastCalcEvga.date}${lastCalcEvga.count ? ' · обработано '+lastCalcEvga.count+' объектов' : ''}`;
+  document.getElementById('evga-calc-status-line').textContent = `Последний расчёт: ${lastCalcEvga.date}${lastCalcEvga.count ? ' · обработано '+pluralObjects(lastCalcEvga.count) : ''}`;
 }
 function pluralObjects(n){
   const mod10 = n % 10, mod100 = n % 100;
@@ -4955,9 +4983,10 @@ function pluralObjects(n){
 function renderNotCalculated(){
   const panel = document.getElementById('not-calculated-panel');
   const body = document.getElementById('not-calculated-body');
-  document.getElementById('not-calculated-count').textContent = pluralObjects(notCalculatedList.length);
-  body.innerHTML = notCalculatedList.map(r=>`<tr><td>${r.object}</td><td><code class="mono">${r.indicator}</code> — ${r.indicatorName}</td><td>${r.missing}</td></tr>`).join('');
-  panel.style.display = (currentContour==='b' && notCalculatedList.length>0) ? 'block' : 'none';
+  const mpEx = mpExclVisible();
+  document.getElementById('not-calculated-count').textContent = pluralObjects(mpEx.length);
+  body.innerHTML = mpEx.map(r=>`<tr><td>${r.object}</td><td><code class="mono">${r.indicator}</code> — ${r.indicatorName}</td><td>${r.missing}</td></tr>`).join('');
+  panel.style.display = (currentContour==='b' && mpEx.length>0) ? 'block' : 'none';
   try { renderKpis(); } catch(e) { /* плитка «Исключено (нет данных)» обновится при первой отрисовке */ }
 }
 /* ===== RI-GU-AUDIT-01 — длительное отсутствие аудита =====
@@ -5120,20 +5149,19 @@ function runEvgaRiskAssessment(){
     const now = new Date();
     const pad = n => String(n).padStart(2,'0');
     const dateStr = `${pad(now.getDate())}.${pad(now.getMonth()+1)}.${now.getFullYear()}, ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    lastCalcEvga = { date: dateStr, count: dataEVGA.length };
+    const mpRunTotal = dataEVGA.filter(o=>o.year===mpYear).length + mpExcludedFor(mpYear).length;
+    lastCalcEvga = { date: dateStr, count: mpRunTotal };
     renderEvgaCalcStatus();
-    const shuffled = [...notCalculatedPool].sort(() => Math.random()-0.5);
-    const n = 2 + Math.floor(Math.random()*3);
-    notCalculatedList = shuffled.slice(0, n);
+    notCalculatedList = mpExcludedFor(mpYear); mpExclRun[mpYear] = notCalculatedList;
     renderNotCalculated();
     btn.disabled = false;
     btn.innerHTML = '<i class="ti ti-refresh"></i>Запустить оценку рисков';
     evgaCalculating = false;
     const note = document.getElementById('evga-calc-note');
     note.style.display = 'block';
-    const okCount = dataEVGA.length - notCalculatedList.length;
-    note.innerHTML = `<strong>Оценка рисков объектов аудита завершена.</strong> Рассчитано ${okCount} из ${dataEVGA.length} объектов. ${notCalculatedList.length>0 ? pluralObjects(notCalculatedList.length)+' не рассчитано из-за недостающих данных по отдельным индикаторам — см. таблицу ниже.' : 'Недостающих данных не обнаружено, все объекты рассчитаны полностью.'} Перечень и уровни риска обновлены.${gapAffected>0 ? ` По индикатору «Длительное отсутствие аудиторских мероприятий» пересчитано ${gapAffected} объектов.` : ''}${salykAffected>0 ? ` По индикатору «Сверка с Салык.кз» пересчитано ${salykAffected} объектов.` : ''}${rotationAffected>0 ? ` По индикатору «Ротация аудиторов» пересчитано ${rotationAffected} объектов.` : ''}`;
-    historyLog.unshift([dateStr, 'Планирование аудита — оценка рисков (ручной запуск)', 'Аналитик СУР', String(dataEVGA.length), 'ok', `3 мин ${10+Math.floor(Math.random()*50)} с`]);
+    const okCount = mpRunTotal - notCalculatedList.length;
+    note.innerHTML = `<strong>Оценка рисков объектов аудита завершена.</strong> Рассчитано ${okCount} из ${mpRunTotal} объектов за ${mpYear} год. ${notCalculatedList.length>0 ? pluralObjects(notCalculatedList.length)+' не рассчитано из-за недостающих данных по отдельным индикаторам — см. таблицу ниже.' : 'Недостающих данных не обнаружено, все объекты рассчитаны полностью.'} Перечень и уровни риска обновлены.${gapAffected>0 ? ` По индикатору «Длительное отсутствие аудиторских мероприятий» пересчитано ${gapAffected} объектов.` : ''}${salykAffected>0 ? ` По индикатору «Сверка с Салык.кз» пересчитано ${salykAffected} объектов.` : ''}${rotationAffected>0 ? ` По индикатору «Ротация аудиторов» пересчитано ${rotationAffected} объектов.` : ''}`;
+    historyLog.unshift([dateStr, 'Планирование аудита — оценка рисков (ручной запуск)', 'Аналитик СУР', String(mpRunTotal), 'ok', `3 мин ${10+Math.floor(Math.random()*50)} с`]);
     renderTable(); renderCards();
   }, 1100);
 }
@@ -5264,17 +5292,17 @@ function renderKpis(){
     values = [scoped.length, scoped.filter(o=>o.risk==='high').length, scoped.filter(o=>o.risk==='mid').length, scoped.filter(o=>o.risk==='direct').length];
   } else if(perechenMode === 'abp'){
     labels = kpiLabelsSubjects; classes = kpiClsSubjects;
-    values = [currentData.length, currentData.filter(o=>o.risk==='high').length, currentData.filter(o=>o.risk==='mid').length, currentData.filter(o=>o.risk==='low').length];
+    values = [visible.length, visible.filter(o=>o.risk==='high').length, visible.filter(o=>o.risk==='mid').length, visible.filter(o=>o.risk==='low').length];
   } else {
     labels = kpiLabelsSubjects; classes = kpiClsSubjects;
-    values = [currentData.length, currentData.filter(o=>o.risk==='high').length, currentData.filter(o=>o.risk==='mid').length, currentData.filter(o=>o.risk==='low').length];
+    values = [visible.length, visible.filter(o=>o.risk==='high').length, visible.filter(o=>o.risk==='mid').length, visible.filter(o=>o.risk==='low').length];
   }
   const kGrid = document.getElementById('kpi-grid');
   const isB5 = currentContour==='b' && perechenMode==='subjects';
   kGrid.style.gridTemplateColumns = isB5 ? 'repeat(5,1fr)' : '';
   kGrid.innerHTML = labels.map((l,i)=>`
     <div class="kpi ${classes[i]}"><div class="lbl">${l}</div><div class="val">${values[i]}</div></div>`).join('')
-    + (isB5 ? `<div class="kpi neutral"><div class="lbl">Исключено (нет данных)</div><div class="val">${notCalculatedList.length}</div></div>` : '');
+    + (isB5 ? `<div class="kpi neutral"><div class="lbl">Исключено (нет данных)</div><div class="val">${mpExclVisible().length}</div></div>` : '');
 
 }
 
@@ -5327,6 +5355,7 @@ function applyFilters(){
   currentPage = 1;
   if(isABP) renderABP(); else { renderTable(); renderCards(); }
   renderPagination();
+  if(currentContour==='b') renderNotCalculated();
 }
 function renderPagination(){
   const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
@@ -9153,7 +9182,7 @@ renderTableHead();
 applyFilters();
 </script>
 <script src="saq-shell.js"></script>
-<script>document.documentElement.dataset.build="2026-10-29-kvga-only-lvl-click-final";</script>
+<script>document.documentElement.dataset.build="2026-10-29-kpi-consistent";</script>
 <script>
 (function(){
  const select=document.getElementById('demo-user');
