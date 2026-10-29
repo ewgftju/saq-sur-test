@@ -376,7 +376,7 @@
           <select id="f-region" onchange="applyFilters()"></select>
           <input type="text" id="f-search" placeholder="Поиск по наименованию" oninput="applyFilters()">
           <button class="btn" id="btn-risk-detail" onclick="openRiskDetail(document.getElementById('f-risk').value||'high')" style="display:none;" title="Показатели и профили, по которым сработал риск: выбранный в фильтре уровень (по умолчанию — высокий)"><i class="ti ti-list-details"></i>Детализация сработавших профилей риска</button>
-          <button class="btn" onclick="exportCSV()"><i class="ti ti-download"></i>Экспорт</button>
+          <button class="btn" onclick="(currentContour==='b' && perechenMode==='subjects') ? mpExportCheck() : exportCSV()"><i class="ti ti-download"></i>Экспорт</button>
           <button class="btn" id="btn-export-abp-xlsx" style="display:none;" onclick="exportAbpIndicatorsXlsx()"><i class="ti ti-file-spreadsheet"></i>Расшифровка (Excel)</button>
         </div>
 
@@ -1149,8 +1149,8 @@ function mpYearHeads(head){
   const y = Number(mpYear);
   [y-2,y-1,y].forEach((v,i)=>{ const el = head.querySelector('.mp-y'+i); if(el) el.textContent = v; });
 }
-function mpSubjectCells(o){
-  const y = Number(mpYear);
+function mpSubjectCells(o, yr){
+  const y = Number(yr||mpYear);
   const f = yy => { const e=(o.financing||[]).find(x=>String(x.year)===String(yy)); return e?e.amount:'—'; };
   const total = [y-2,y-1,y].reduce((a,yy)=>a+mpNum(f(yy)),0);
   const abp = o.parentAbp;
@@ -1171,6 +1171,30 @@ function mpSubjectCells(o){
       <td style="color:var(--text-2);white-space:nowrap;">${li?li.date:'—'}</td>
       <td style="color:var(--text-2);">${li?li.type:'—'}</td>
       <td><i class="ti ti-chevron-right" style="color:var(--text-muted);"></i></td>`;
+}
+function mpRowValues(o, yr){ // те же столбцы, что в таблице (для экспорта)
+  const y = Number(yr||mpYear);
+  const f = yy => { const e=(o.financing||[]).find(x=>String(x.year)===String(yy)); return e?e.amount:''; };
+  const total = [y-2,y-1,y].reduce((a,yy)=>a+mpNum(f(yy)),0);
+  return [o.bin||'', o.name, o.region||deriveRegion(o.name), o.district||'', o.kind,
+    o.subjectType==='АФО'?'Аудит финансовой отчётности':'Аудит соответствия', mpRepBudget(o), riskLabelFor(o.risk),
+    o.parentAbp?o.parentAbp.code:'', o.parentAbp?riskLabelFor(o.parentAbp.risk):'', f(y-2), f(y-1), f(y), mpFmt(total),
+    o.lastInspection?o.lastInspection.date:'', o.lastInspection?o.lastInspection.type:''];
+}
+function mpRowHeader(yr){
+  const y = Number(yr||mpYear);
+  return ['Код АБП / БИН','Субъект','Область','Район','Вид субъекта','Тип аудита','Наличие республиканского бюджета','Уровень риска АУ','АБП','Уровень риска АБП',
+    `Объём финансирования за ${y-2} год, млн ₸`,`Объём финансирования за ${y-1} год, млн ₸`,`Объём финансирования за ${y} год, млн ₸`,'Объём финансирования итого, млн ₸',
+    'Дата последней проверки','Тип последней проверки'];
+}
+function mpExportCheck(){ // «Экспорт» на экране «Проверка»: отображаемые строки и столбцы таблицы
+  if(!visible.length){ alert('Нет данных для экспорта — измените фильтры.'); return; }
+  downloadCSV('perechen_evga.csv', [['№', ...mpRowHeader()], ...visible.map((o,i)=>[i+1, ...mpRowValues(o)])]);
+}
+function mpOpenObj(name, year){ // карточка объекта из любого года (детализация, «Территория»)
+  const o = dataEVGA.find(x=>x.name===name && String(x.year)===String(year)); if(!o) return;
+  if(String(mpYear)!==String(year)){ const ys=document.getElementById('mp-year'); if(ys) ys.value=String(year); mpSetYear(String(year)); }
+  const idx = currentData.indexOf(o); if(idx>=0) openDetail('subject', idx);
 }
 function mpSetYear(v){
   mpYear = v;
@@ -1247,8 +1271,7 @@ function renderRiskDetailBody(){
   const rows = mpRiskRows();
   document.getElementById('rd-body').innerHTML = rows.length ? rows.map(({o,c})=>{
     const [up,lo] = mpLimits(c);
-    const idx = currentData.indexOf(o);
-    return `<tr class="row" ${idx>=0?`style="cursor:pointer;" onclick="openDetail('subject', ${idx})"`:''}>
+    return `<tr class="row" style="cursor:pointer;" onclick="mpOpenObj(${JSON.stringify(o.name).replace(/"/g,'&quot;')}, '${o.year}')">
       <td style="color:var(--text-2);white-space:nowrap;">${o.year}</td>
       <td class="mono" style="color:var(--text-2);">${o.bin||'—'}</td>
       <td style="text-align:right;">1</td>
@@ -1271,7 +1294,7 @@ function exportRiskDetail(){
 /* ---------- 2. Уведомления ---------- */
 let surNotifications = [];
 let mpNtfTab = 'all', mpNtfSel = 0;
-const MP_ME = 'Байдәулет А.Д.';
+function mpCurrentUser(){ const s=document.getElementById('demo-user'); return (s && s.selectedOptions[0]) ? s.selectedOptions[0].textContent.trim() : 'Байдәулет Аят Дүйсенғазыұлы'; }
 function mpDvgaName(region){
   if(region==='г. Астана') return 'Департамент внутреннего государственного аудита по городу Астане';
   if(region==='г. Алматы') return 'Департамент внутреннего государственного аудита по городу Алматы';
@@ -1279,9 +1302,11 @@ function mpDvgaName(region){
   if(/^область /.test(region)) return 'Департамент внутреннего государственного аудита по '+region.replace(/^область /,'области ');
   return 'Департамент внутреннего государственного аудита по '+region.replace(/ая область$/,'ой области').replace(/ий область$/,'ой области').replace(/ская область$/,'ской области').replace(/ая обл\.$/,'ой области');
 }
-function mpPushNotification(region, author, date, time){
-  surNotifications.unshift({region, author:author||MP_ME, date:date||demoTodayStr(), time:time||(()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');})(),
-    text:'Переданы сведения по результатам оценки рисков', status:'Доставлено'});
+function mpPushNotification(region, author, date, time, objs, year){
+  // objs — объекты направленной региональной группы (снимок на момент направления)
+  surNotifications.unshift({region, author:author||mpCurrentUser(), date:date||demoTodayStr(), time:time||(()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');})(),
+    text:'Переданы сведения по результатам оценки рисков', status:'Доставлено',
+    year:String(year||mpYear), objects:(objs||[]).map(o=>o.name), count:(objs||[]).length});
 }
 function mpUpdateNtfBadge(){
   const b = document.getElementById('ntf-badge'); if(!b) return;
@@ -1292,7 +1317,7 @@ function openNotifications(selIdx){
   mpOpenView('view-notifications','nav-notifications');
   renderNotifications();
 }
-function mpNtfList(){ return surNotifications.filter(n => mpNtfTab==='all' || n.author===MP_ME); }
+function mpNtfList(){ const me=mpCurrentUser(); return surNotifications.filter(n => mpNtfTab==='all' || n.author===me); }
 function renderNotifications(){
   const list = mpNtfList();
   if(mpNtfSel >= list.length) mpNtfSel = 0;
@@ -1302,7 +1327,6 @@ function renderNotifications(){
       <td><span class="badge sent">${n.status}</span></td>
       <td style="text-align:right;"><i class="ti ti-chevron-right" style="color:var(--text-muted);"></i></td></tr>`).join('')
     || `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Уведомлений нет</td></tr>`;
-  const nObj = sel ? currentDataForRegion(sel.region).length : 0;
   document.getElementById('view-notifications').innerHTML = `
     <div class="crumb">СУР / Уведомления</div>
     <div class="topbar"><h1>Уведомления</h1><span class="pill">СУР для планирования годового аудита</span></div>
@@ -1319,41 +1343,42 @@ function renderNotifications(){
         <div style="font-size:13px;color:var(--text-2);margin-top:3px;">Территориальный департамент получил информацию по результатам оценки рисков в соответствии с установленным порядком.</div></div>
       </div>
       <div style="display:grid;grid-template-columns:200px 1fr 160px 150px;gap:12px;margin-top:16px;">
-        <div class="stat" style="margin:0;"><div class="lbl">Дата и время отправки</div><div style="font-size:14px;font-weight:500;margin-top:4px;">${sel.date} ${sel.time}</div></div>
+        <div class="stat" style="margin:0;"><div class="lbl">Дата и время отправки</div><div style="font-size:14px;font-weight:500;margin-top:4px;">${sel.date}, ${sel.time}</div></div>
         <div class="stat" style="margin:0;"><div class="lbl">Территориальный департамент</div><div style="font-size:14px;font-weight:500;margin-top:4px;">${mpDvgaName(sel.region)}</div></div>
         <div class="stat" style="margin:0;"><div class="lbl">Статус</div><div style="margin-top:4px;"><span class="badge sent">${sel.status}</span></div></div>
-        <div class="stat" style="margin:0;"><div class="lbl">Объектов в составе</div><div style="font-size:14px;font-weight:500;margin-top:4px;">${nObj}</div></div>
+        <div class="stat" style="margin:0;"><div class="lbl">Объектов в составе</div><div style="font-size:14px;font-weight:500;margin-top:4px;">${sel.count}</div></div>
       </div>
-      <div style="margin-top:14px;"><button class="btn btn-primary" onclick="openTerritory('${sel.region.replace(/'/g,"\\'")}')"><i class="ti ti-map-pin"></i>Открыть результаты по территории</button></div>
+      <div style="margin-top:14px;"><button class="btn btn-primary" onclick="openTerritory(${mpNtfSel})"><i class="ti ti-map-pin"></i>Открыть результаты по территории</button></div>
     </div>` : ''}`;
   mpUpdateNtfBadge();
 }
 
 /* ---------- 3. Территория ---------- */
-let mpTerr = {region:'', risk:'', kind:'', type:'', q:''};
-function currentDataForRegion(region){
-  return dataEVGA.filter(o=>o.year===mpYear && (o.region||deriveRegion(o.name))===region);
+let mpTerr = {region:'', year:'', objects:[], risk:'', kind:'', type:'', q:''};
+function mpTerrAll(){ // объекты направленной региональной группы (по уведомлению)
+  return mpTerr.objects.map(nm=>dataEVGA.find(o=>o.name===nm && String(o.year)===String(mpTerr.year))).filter(Boolean);
 }
-function openTerritory(region){
-  mpTerr = {region, risk:'', kind:'', type:'', q:''};
+function openTerritory(i){
+  const n = mpNtfList()[i]; if(!n) return;
+  mpTerr = {region:n.region, year:n.year, objects:n.objects.slice(), risk:'', kind:'', type:'', q:''};
   mpOpenView('view-territory','nav-notifications');
   renderTerritory();
 }
 function mpTerrRows(){
   const q = mpTerr.q.trim().toLowerCase();
-  return currentDataForRegion(mpTerr.region).filter(o=>
+  return mpTerrAll().filter(o=>
     (!mpTerr.risk || o.risk===mpTerr.risk) && (!mpTerr.kind || o.kind===mpTerr.kind) &&
     (!mpTerr.type || (o.subjectType==='АФО'?'Аудит финансовой отчётности':'Аудит соответствия')===mpTerr.type) &&
-    (!q || o.name.toLowerCase().includes(q) || (o.bin||'').includes(q)));
+    (!q || o.name.toLowerCase().includes(q) || (o.bin||'').includes(q) || (o.parentAbp && String(o.parentAbp.code).includes(q))));
 }
 function renderTerritory(){
-  const all = currentDataForRegion(mpTerr.region);
+  const all = mpTerrAll();
   const c = k => all.filter(o=>o.risk===k).length;
-  const y = Number(mpYear);
+  const y = Number(mpTerr.year);
   document.getElementById('view-territory').innerHTML = `
     <div class="crumb">СУР / Уведомления / Территория</div>
     <a class="back-link" onclick="openNotifications()"><i class="ti ti-arrow-left"></i>Назад к уведомлениям</a>
-    <div class="topbar"><h1>Территория: ${mpTerr.region}</h1><span class="pill">${mpYear} год</span></div>
+    <div class="topbar"><h1>Территория: ${mpTerr.region}</h1><span class="pill">${mpTerr.year} год</span></div>
     <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);">
       <div class="kpi neutral"><div class="lbl">Всего объектов</div><div class="val">${all.length}</div></div>
       <div class="kpi high"><div class="lbl">Высокий риск</div><div class="val">${c('high')}</div></div>
@@ -1384,17 +1409,15 @@ function renderTerritory(){
 function renderTerritoryBody(){
   const rows = mpTerrRows();
   document.getElementById('terr-body').innerHTML = rows.length ? rows.map((o,i)=>{
-    const idx = currentData.indexOf(o);
-    return `<tr class="row" ${idx>=0?`style="cursor:pointer;" onclick="openDetail('subject', ${idx})"`:''}>
-      <td style="color:var(--text-muted);">${i+1}</td><td class="mono" style="color:var(--text-2);white-space:nowrap;">${o.bin||'—'}</td><td>${o.name}</td>${mpSubjectCells(o)}</tr>`;
+    return `<tr class="row" style="cursor:pointer;" onclick="mpOpenObj(${JSON.stringify(o.name).replace(/"/g,'&quot;')}, '${o.year}')">
+      <td style="color:var(--text-muted);">${i+1}</td><td class="mono" style="color:var(--text-2);white-space:nowrap;">${o.bin||'—'}</td><td>${o.name}</td>${mpSubjectCells(o, mpTerr.year)}</tr>`;
   }).join('') : `<tr><td colspan="18" style="text-align:center;color:var(--text-muted);padding:24px;">Объекты не найдены — попробуйте изменить фильтры</td></tr>`;
-  document.getElementById('terr-count').textContent = `Показано ${rows.length} из ${currentDataForRegion(mpTerr.region).length}`;
+  document.getElementById('terr-count').textContent = `Показано ${rows.length} из ${mpTerrAll().length}`;
 }
 function exportTerritory(){
-  const y = Number(mpYear);
-  const f=(o,yy)=>{const e=(o.financing||[]).find(x=>String(x.year)===String(yy));return e?e.amount:'';};
-  downloadCSV(`территория_${mpTerr.region}_${mpYear}.csv`, [['БИН','Субъект','Область','Район','Вид субъекта','Тип аудита','Наличие республиканского бюджета','Уровень риска АУ','АБП','Уровень риска АБП',`Объём ${y-2}`,`Объём ${y-1}`,`Объём ${y}`,'Дата последней проверки','Тип последней проверки'],
-    ...mpTerrRows().map(o=>[o.bin||'',o.name,o.region||'',o.district||'',o.kind,o.subjectType==='АФО'?'Аудит финансовой отчётности':'Аудит соответствия',mpRepBudget(o),riskLabelFor(o.risk),o.parentAbp?o.parentAbp.code:'',o.parentAbp?riskLabelFor(o.parentAbp.risk):'',f(o,y-2),f(o,y-1),f(o,y),o.lastInspection?o.lastInspection.date:'',o.lastInspection?o.lastInspection.type:''])]);
+  const rows = mpTerrRows();
+  if(!rows.length){ alert('Нет данных для экспорта — измените фильтры.'); return; }
+  downloadCSV(`территория_${mpTerr.region}_${mpTerr.year}.csv`, [['№', ...mpRowHeader(mpTerr.year)], ...rows.map((o,i)=>[i+1, ...mpRowValues(o, mpTerr.year)])]);
 }
 
 /* ---------- отправка в ДВГА → уведомления ---------- */
@@ -1403,7 +1426,7 @@ function mpDispatchWrap(){
   dispatchSurDraft_orig();
   const fresh = regionalBatches.slice(before);
   if(!fresh.length) return;
-  fresh.forEach(b=>mpPushNotification(b.region));
+  fresh.forEach(b=>mpPushNotification(b.region, null, null, null, b.objects, b.year));
   mpNtfTab='all'; mpNtfSel=0;
   openNotifications(0);
 }
@@ -1413,11 +1436,15 @@ function mpSeedNotifications(){
   const top = Object.entries(byReg).sort((a,b)=>b[1]-a[1]).map(e=>e[0]);
   const d = demoTodayStr();
   surNotifications = [];
-  mpPushNotification(top[2], 'Демо-суперпользователь', d, '09:20');
-  mpPushNotification(top[1], MP_ME, d, '10:45');
-  mpPushNotification(top[0], MP_ME, d, '10:45');
+  const objsOf = r => dataEVGA.filter(o=>o.year==='2026' && (o.region||deriveRegion(o.name))===r);
+  mpPushNotification(top[2], 'Демо-суперпользователь', d, '09:20', objsOf(top[2]), '2026');
+  mpPushNotification(top[1], mpCurrentUser(), d, '10:45', objsOf(top[1]), '2026');
+  mpPushNotification(top[0], mpCurrentUser(), d, '10:45', objsOf(top[0]), '2026');
   mpUpdateNtfBadge();
 }
+
+/* смена пользователя: «Мои уведомления» пересчитываются по текущему пользователю */
+document.addEventListener('DOMContentLoaded', ()=>{ const s=document.getElementById('demo-user'); if(s) s.addEventListener('change', ()=>{ const v=document.getElementById('view-notifications'); if(v && v.style.display==='block') renderNotifications(); }); });
 
 </script>
 <script>
@@ -5281,6 +5308,7 @@ function setContour(c){
   selectedIndices.clear();
   document.getElementById('nav-oko').style.display = c==='b' ? 'flex' : 'none';
   document.getElementById('nav-dvga').style.display = c==='b' ? 'flex' : 'none';
+  document.getElementById('nav-notifications').style.display = c==='b' ? 'flex' : 'none';
   document.getElementById('dfo-import-panel').style.display = c==='a' ? 'block' : 'none';
   document.getElementById('row-context').style.display = c==='b' ? 'flex' : 'none';
   document.getElementById('row-checktype-tabs').style.display = c==='a' ? 'flex' : 'none';
@@ -9272,7 +9300,7 @@ renderTableHead();
 applyFilters();
 </script>
 <script src="saq-shell.js"></script>
-<script>document.documentElement.dataset.build="2026-10-29-check-detail-button";</script>
+<script>document.documentElement.dataset.build="2026-10-29-check-review-fixes";</script>
 <script>
 (function(){
  const select=document.getElementById('demo-user');
