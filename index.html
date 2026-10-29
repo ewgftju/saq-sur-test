@@ -375,6 +375,7 @@
           <select id="f-risk" onchange="applyFilters()"></select>
           <select id="f-region" onchange="applyFilters()"></select>
           <input type="text" id="f-search" placeholder="Поиск по наименованию" oninput="applyFilters()">
+          <button class="btn" id="btn-risk-detail" onclick="openRiskDetail(document.getElementById('f-risk').value||'high')" style="display:none;" title="Показатели и профили, по которым сработал риск: выбранный в фильтре уровень (по умолчанию — высокий)"><i class="ti ti-list-details"></i>Детализация сработавших профилей риска</button>
           <button class="btn" onclick="exportCSV()"><i class="ti ti-download"></i>Экспорт</button>
           <button class="btn" id="btn-export-abp-xlsx" style="display:none;" onclick="exportAbpIndicatorsXlsx()"><i class="ti ti-file-spreadsheet"></i>Расшифровка (Excel)</button>
         </div>
@@ -5396,6 +5397,7 @@ function renderKpis(){
   kGrid.innerHTML = labels.map((l,i)=>`
     <div class="kpi ${classes[i]}${isB5&&lvlOf[i]?' kpi-click':''}" ${isB5&&lvlOf[i]?`onclick="openRiskDetail('${lvlOf[i]}')" title="Открыть детализацию сработавших показателей"`:''}><div class="lbl">${l}</div><div class="val">${values[i]}</div></div>`).join('')
     + (isB5 ? `<div class="kpi neutral"><div class="lbl">Исключено (нет данных)</div><div class="val">${notCalculatedList.length}</div></div>` : '');
+  const btnRD = document.getElementById('btn-risk-detail'); if(btnRD) btnRD.style.display = isB5 ? '' : 'none';
 }
 
 /* ---------- фильтры ---------- */
@@ -9270,7 +9272,7 @@ renderTableHead();
 applyFilters();
 </script>
 <script src="saq-shell.js"></script>
-<script>document.documentElement.dataset.build="2026-10-28-check-detail-notifications";</script>
+<script>document.documentElement.dataset.build="2026-10-29-check-detail-button";</script>
 <script>
 (function(){
  const select=document.getElementById('demo-user');
