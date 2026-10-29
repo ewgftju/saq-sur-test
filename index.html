@@ -116,9 +116,8 @@
   .kpi.kpi-on{box-shadow:0 0 0 2px var(--accent);}
   .tbl-wide{min-width:2050px;} .tbl-wide th,.tbl-wide td{padding-left:10px;padding-right:10px;}
   .tbl-wide th{font-size:12px;line-height:1.25;vertical-align:bottom;}
-  .ntf-row{cursor:pointer;} .ntf-row.sel td{background:var(--accent-bg);}
-  .ok-circle{width:38px;height:38px;border-radius:50%;background:var(--success-bg);color:var(--success-text);display:flex;align-items:center;justify-content:center;font-size:20px;flex:none;}
-  .nav-badge{margin-left:auto;background:var(--accent);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;}
+  .mp-lvl{cursor:pointer;} .mp-lvl:hover{box-shadow:0 0 0 2px var(--accent);}
+  .mp-subj{color:var(--accent);font-weight:500;cursor:pointer;} .mp-subj:hover{text-decoration:underline;}
   .back-link{display:inline-flex;align-items:center;gap:8px;color:var(--text);background:var(--surface);border:1px solid var(--border);text-decoration:none;font-size:14px;font-weight:600;margin-bottom:16px;padding:9px 16px;border-radius:9px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.04);transition:background .15s,border-color .15s;}
   .back-link:hover{background:var(--surface-alt);border-color:var(--accent);}
   .back-link i{font-size:17px;}
@@ -205,7 +204,6 @@
     <div class="sur-subnav">
     <button type="button" class="nav-item active" id="nav-check" onclick="showWorkspace('check')" title="Проверка"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h1m3 0h5m-9 4h1m3 0h5m-9 4h1m3 0h5"/></svg><span class="nav-label">Проверка</span></button>
     <button type="button" class="nav-item" id="nav-dvga" onclick="openDvgaMain()" title="Рассмотрение в ДВГА"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 7 11 7 11z"/><path d="m9.5 10.3 1.8 1.8 3.2-3.6"/></svg><span class="nav-label">Рассмотрение в ДВГА</span></button>
-    <button type="button" class="nav-item" id="nav-notifications" onclick="openNotifications()" title="Уведомления"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg><span class="nav-label">Уведомления</span><span class="nav-badge" id="ntf-badge" style="display:none;"></span></button>
     <button type="button" class="nav-item" id="nav-perechen" onclick="openPerechenMain()" title="Перечень"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="12" height="16" rx="2"/><path d="M9 4h6v2H9z"/><path d="M9 11h6M9 15h4"/></svg><span class="nav-label">Перечень</span></button>
     <button type="button" class="nav-item" id="nav-criteria" onclick="showScreen('criteria')" title="Реестр критериев"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10m4 0h2M4 17h2m4 0h10M14 5v4M6 15v4"/></svg><span class="nav-label">Реестр критериев</span></button>
     <button type="button" class="nav-item" id="nav-history" onclick="showScreen('history')" title="История расчётов"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11a9 9 0 1 1 2.5 7M3 4v7h7m2-4v6l4 2"/></svg><span class="nav-label">История расчётов</span></button>
@@ -222,8 +220,6 @@
     <div id="screen-list" class="screen active">
 
       <div id="view-risk-detail" style="display:none;"></div>
-      <div id="view-notifications" style="display:none;"></div>
-      <div id="view-territory" style="display:none;"></div>
 
       <div id="view-list">
         <div class="crumb" id="crumb">СУР для планирования годового аудита / Проверка</div>
@@ -375,7 +371,6 @@
           <select id="f-risk" onchange="applyFilters()"></select>
           <select id="f-region" onchange="applyFilters()"></select>
           <input type="text" id="f-search" placeholder="Поиск по наименованию" oninput="applyFilters()">
-          <button class="btn" id="btn-risk-detail" onclick="openRiskDetail(document.getElementById('f-risk').value||'high')" style="display:none;" title="Показатели и профили, по которым сработал риск: выбранный в фильтре уровень (по умолчанию — высокий)"><i class="ti ti-list-details"></i>Детализация сработавших профилей риска</button>
           <button class="btn" onclick="(currentContour==='b' && perechenMode==='subjects') ? mpExportCheck() : exportCSV()"><i class="ti ti-download"></i>Экспорт</button>
           <button class="btn" id="btn-export-abp-xlsx" style="display:none;" onclick="exportAbpIndicatorsXlsx()"><i class="ti ti-file-spreadsheet"></i>Расшифровка (Excel)</button>
         </div>
@@ -1161,7 +1156,7 @@ function mpSubjectCells(o, yr){
       <td style="color:var(--text-2);white-space:nowrap;">${o.kind}</td>
       <td style="color:var(--text-2);">${o.subjectType==='АФО' ? 'Аудит финансовой отчётности' : 'Аудит соответствия'}</td>
       <td style="color:var(--text-2);">${mpRepBudget(o)}</td>
-      <td><span class="badge ${o.risk}">${riskLabelFor(o.risk)}</span></td>
+      <td><span class="badge ${o.risk} mp-lvl" role="button" title="Открыть детализацию сработавших профилей риска по объекту" onclick="event.stopPropagation();openRiskDetail('${o.risk}', '${o.bin||''}')">${riskLabelFor(o.risk)}</span></td>
       <td class="mono" style="color:var(--text-2);">${abp?abp.code:'—'}</td>
       <td>${abp?`<span class="badge ${abp.risk}">${riskLabelFor(abp.risk)}</span>`:'—'}</td>
       <td class="mono" style="text-align:right;">${f(y-2)}</td>
@@ -1205,7 +1200,7 @@ function mpSetYear(v){
 }
 
 /* ---------- 1. Детализация сработавших профилей риска ---------- */
-let mpRiskLevel = 'high', mpRiskYear = '2026';
+let mpRiskLevel = 'high', mpRiskYear = '2026', mpRiskQuery = '';
 const MP_LEVEL_LBL = {high:'Высокий', mid:'Средний', low:'Низкий'};
 function mpOpenView(viewId, navId){
   showScreen('list'); clearAllNav(); hideAllScreenListViews();
@@ -1221,8 +1216,8 @@ function mpLimits(c){ // ТЕСТОВЫЕ пределы: в системе — 
   if(v.includes('млн')) return [fm(8+(h%9))+' млн тенге', fm(1+(h%3))+' млн тенге'];
   return [String(3+(h%3)), '1'];
 }
-function openRiskDetail(level){
-  mpRiskLevel = level || mpRiskLevel; mpRiskYear = mpYear;
+function openRiskDetail(level, bin){
+  mpRiskLevel = level || mpRiskLevel; mpRiskYear = mpYear; mpRiskQuery = bin || '';
   mpOpenView('view-risk-detail','nav-check');
   renderRiskDetail();
 }
@@ -1239,7 +1234,7 @@ function renderRiskDetail(){
   const objs = dataEVGA.filter(o=>o.year===mpRiskYear);
   const cnt = k => objs.filter(o=>o.risk===k).length;
   const rows = mpRiskRows();
-  const tile = (k,lbl,cls)=>`<div class="kpi ${cls} kpi-click${mpRiskLevel===k?' kpi-on':''}" onclick="mpRiskLevel='${k}';renderRiskDetail();"><div class="lbl">${lbl}</div><div class="val">${cnt(k)}</div></div>`;
+  const tile = (k,lbl,cls)=>`<div class="kpi ${cls} kpi-click${mpRiskLevel===k?' kpi-on':''}" onclick="mpRiskLevel='${k}';mpRiskQuery='';renderRiskDetail();"><div class="lbl">${lbl}</div><div class="val">${cnt(k)}</div></div>`;
   document.getElementById('view-risk-detail').innerHTML = `
     <div class="crumb">СУР для планирования годового аудита / Проверка / Детализация</div>
     <a class="back-link" onclick="showWorkspace('check')"><i class="ti ti-arrow-left"></i>Назад</a>
@@ -1251,8 +1246,8 @@ function renderRiskDetail(){
     </div>
     <div class="toolbar">
       <select id="rd-year" onchange="mpRiskYear=this.value;renderRiskDetail();"><option value="2026">2026 год</option><option value="2025">2025 год</option><option value="2024">2024 год</option></select>
-      <select id="rd-level" onchange="mpRiskLevel=this.value;renderRiskDetail();"><option value="high">Уровень риска: Высокий</option><option value="mid">Уровень риска: Средний</option><option value="low">Уровень риска: Низкий</option></select>
-      <input type="text" id="rd-search" placeholder="Поиск по БИН / коду" oninput="renderRiskDetailBody()" style="min-width:240px;">
+      <select id="rd-level" onchange="mpRiskLevel=this.value;mpRiskQuery='';renderRiskDetail();"><option value="high">Уровень риска: Высокий</option><option value="mid">Уровень риска: Средний</option><option value="low">Уровень риска: Низкий</option></select>
+      <input type="text" id="rd-search" placeholder="Поиск по БИН / коду" value="${mpRiskQuery}" oninput="mpRiskQuery=this.value;renderRiskDetailBody()" style="min-width:240px;">
       <button class="btn" onclick="exportRiskDetail()"><i class="ti ti-download"></i>Экспорт</button>
     </div>
     <div class="card" style="overflow-x:auto;">
@@ -1261,8 +1256,7 @@ function renderRiskDetail(){
         <tbody id="rd-body"></tbody>
       </table>
     </div>
-    <div class="footer-row"><span id="rd-count"></span></div>
-    <div style="font-size:12.5px;color:var(--text-muted);margin-top:10px;">Логика: выбрать «Высокий / Средний / Низкий риск» → открыть детализацию → увидеть коды и значения показателей по сработавшим профилям.</div>`;
+    <div class="footer-row"><span id="rd-count"></span></div>`;
   document.getElementById('rd-year').value = mpRiskYear;
   document.getElementById('rd-level').value = mpRiskLevel;
   renderRiskDetailBody();
@@ -1291,160 +1285,18 @@ function exportRiskDetail(){
   downloadCSV(`детализация_${mpRiskLevel}_${mpRiskYear}.csv`, [['Год','БИН или код АБП','Количество субъектов','Наименование субъекта','Код показателя','Количество показателей','Описание показателя','Значение показателя','Баллы','Верхний предел','Нижний предел'], ...rows]);
 }
 
-/* ---------- 2. Уведомления ---------- */
-let surNotifications = [];
-let mpNtfTab = 'all', mpNtfSel = 0;
-function mpCurrentUser(){ const s=document.getElementById('demo-user'); return (s && s.selectedOptions[0]) ? s.selectedOptions[0].textContent.trim() : 'Байдәулет Аят Дүйсенғазыұлы'; }
-function mpDvgaName(region){
-  if(region==='г. Астана') return 'Департамент внутреннего государственного аудита по городу Астане';
-  if(region==='г. Алматы') return 'Департамент внутреннего государственного аудита по городу Алматы';
-  if(region==='г. Шымкент') return 'Департамент внутреннего государственного аудита по городу Шымкент';
-  if(/^область /.test(region)) return 'Департамент внутреннего государственного аудита по '+region.replace(/^область /,'области ');
-  return 'Департамент внутреннего государственного аудита по '+region.replace(/ая область$/,'ой области').replace(/ий область$/,'ой области').replace(/ская область$/,'ской области').replace(/ая обл\.$/,'ой области');
-}
-function mpPushNotification(region, author, date, time, objs, year){
-  // objs — объекты направленной региональной группы (снимок на момент направления)
-  surNotifications.unshift({region, author:author||mpCurrentUser(), date:date||demoTodayStr(), time:time||(()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');})(),
-    text:'Переданы сведения по результатам оценки рисков', status:'Доставлено',
-    year:String(year||mpYear), objects:(objs||[]).map(o=>o.name), count:(objs||[]).length});
-}
-function mpUpdateNtfBadge(){
-  const b = document.getElementById('ntf-badge'); if(!b) return;
-  b.style.display = surNotifications.length ? '' : 'none'; b.textContent = surNotifications.length;
-}
-function openNotifications(selIdx){
-  if(typeof selIdx==='number') mpNtfSel = selIdx;
-  mpOpenView('view-notifications','nav-notifications');
-  renderNotifications();
-}
-function mpNtfList(){ const me=mpCurrentUser(); return surNotifications.filter(n => mpNtfTab==='all' || n.author===me); }
-function renderNotifications(){
-  const list = mpNtfList();
-  if(mpNtfSel >= list.length) mpNtfSel = 0;
-  const sel = list[mpNtfSel];
-  const rows = list.map((n,i)=>`<tr class="ntf-row${i===mpNtfSel?' sel':''}" onclick="mpNtfSel=${i};renderNotifications();">
-      <td style="white-space:nowrap;">${n.date}</td><td>${mpDvgaName(n.region)}</td><td>${n.text}</td>
-      <td><span class="badge sent">${n.status}</span></td>
-      <td style="text-align:right;"><i class="ti ti-chevron-right" style="color:var(--text-muted);"></i></td></tr>`).join('')
-    || `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px;">Уведомлений нет</td></tr>`;
-  document.getElementById('view-notifications').innerHTML = `
-    <div class="crumb">СУР / Уведомления</div>
-    <div class="topbar"><h1>Уведомления</h1><span class="pill">СУР для планирования годового аудита</span></div>
-    <div class="subrow" style="justify-content:flex-start;"><div class="segmented">
-      <button class="${mpNtfTab==='all'?'active':''}" onclick="mpNtfTab='all';mpNtfSel=0;renderNotifications();">Все уведомления</button>
-      <button class="${mpNtfTab==='mine'?'active':''}" onclick="mpNtfTab='mine';mpNtfSel=0;renderNotifications();">Мои уведомления</button></div></div>
-    <div class="card" style="overflow-x:auto;margin-bottom:16px;">
-      <table><thead><tr><th style="width:120px;">Дата</th><th style="min-width:300px;">Территориальный департамент</th><th>Сведения</th><th style="width:130px;">Статус</th><th style="width:40px;"></th></tr></thead><tbody>${rows}</tbody></table>
-    </div>
-    ${sel ? `<div class="card" style="padding:20px 22px;">
-      <div style="display:flex;align-items:center;gap:14px;">
-        <div class="ok-circle"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg></div>
-        <div><div style="font-size:15px;font-weight:600;">Сведения направлены в территориальный департамент</div>
-        <div style="font-size:13px;color:var(--text-2);margin-top:3px;">Территориальный департамент получил информацию по результатам оценки рисков в соответствии с установленным порядком.</div></div>
-      </div>
-      <div style="display:grid;grid-template-columns:200px 1fr 160px 150px;gap:12px;margin-top:16px;">
-        <div class="stat" style="margin:0;"><div class="lbl">Дата и время отправки</div><div style="font-size:14px;font-weight:500;margin-top:4px;">${sel.date}, ${sel.time}</div></div>
-        <div class="stat" style="margin:0;"><div class="lbl">Территориальный департамент</div><div style="font-size:14px;font-weight:500;margin-top:4px;">${mpDvgaName(sel.region)}</div></div>
-        <div class="stat" style="margin:0;"><div class="lbl">Статус</div><div style="margin-top:4px;"><span class="badge sent">${sel.status}</span></div></div>
-        <div class="stat" style="margin:0;"><div class="lbl">Объектов в составе</div><div style="font-size:14px;font-weight:500;margin-top:4px;">${sel.count}</div></div>
-      </div>
-      <div style="margin-top:14px;"><button class="btn btn-primary" onclick="openTerritory(${mpNtfSel})"><i class="ti ti-map-pin"></i>Открыть результаты по территории</button></div>
-    </div>` : ''}`;
-  mpUpdateNtfBadge();
-}
-
-/* ---------- 3. Территория ---------- */
-let mpTerr = {region:'', year:'', objects:[], risk:'', kind:'', type:'', q:''};
-function mpTerrAll(){ // объекты направленной региональной группы (по уведомлению)
-  return mpTerr.objects.map(nm=>dataEVGA.find(o=>o.name===nm && String(o.year)===String(mpTerr.year))).filter(Boolean);
-}
-function openTerritory(i){
-  const n = mpNtfList()[i]; if(!n) return;
-  mpTerr = {region:n.region, year:n.year, objects:n.objects.slice(), risk:'', kind:'', type:'', q:''};
-  mpOpenView('view-territory','nav-notifications');
-  renderTerritory();
-}
-function mpTerrRows(){
-  const q = mpTerr.q.trim().toLowerCase();
-  return mpTerrAll().filter(o=>
-    (!mpTerr.risk || o.risk===mpTerr.risk) && (!mpTerr.kind || o.kind===mpTerr.kind) &&
-    (!mpTerr.type || (o.subjectType==='АФО'?'Аудит финансовой отчётности':'Аудит соответствия')===mpTerr.type) &&
-    (!q || o.name.toLowerCase().includes(q) || (o.bin||'').includes(q) || (o.parentAbp && String(o.parentAbp.code).includes(q))));
-}
-function renderTerritory(){
-  const all = mpTerrAll();
-  const c = k => all.filter(o=>o.risk===k).length;
-  const y = Number(mpTerr.year);
-  document.getElementById('view-territory').innerHTML = `
-    <div class="crumb">СУР / Уведомления / Территория</div>
-    <a class="back-link" onclick="openNotifications()"><i class="ti ti-arrow-left"></i>Назад к уведомлениям</a>
-    <div class="topbar"><h1>Территория: ${mpTerr.region}</h1><span class="pill">${mpTerr.year} год</span></div>
-    <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);">
-      <div class="kpi neutral"><div class="lbl">Всего объектов</div><div class="val">${all.length}</div></div>
-      <div class="kpi high"><div class="lbl">Высокий риск</div><div class="val">${c('high')}</div></div>
-      <div class="kpi mid"><div class="lbl">Средний риск</div><div class="val">${c('mid')}</div></div>
-      <div class="kpi low"><div class="lbl">Низкий риск</div><div class="val">${c('low')}</div></div>
-      <div class="kpi neutral"><div class="lbl">Исключено (нет данных)</div><div class="val">0</div></div>
-    </div>
-    <div class="toolbar">
-      <select onchange="mpTerr.risk=this.value;renderTerritoryBody()"><option value="">Все уровни риска</option><option value="high">Высокий</option><option value="mid">Средний</option><option value="low">Низкий</option></select>
-      <select onchange="mpTerr.kind=this.value;renderTerritoryBody()"><option value="">Все виды (ГУ и КвазиГос)</option><option>ГУ</option><option>КвазиГос</option></select>
-      <select onchange="mpTerr.type=this.value;renderTerritoryBody()"><option value="">Все типы аудита</option><option>Аудит соответствия</option><option>Аудит финансовой отчётности</option></select>
-      <input type="text" placeholder="Поиск по наименованию, БИН или коду" oninput="mpTerr.q=this.value;renderTerritoryBody()" style="min-width:260px;">
-      <button class="btn" onclick="exportTerritory()"><i class="ti ti-download"></i>Экспорт</button>
-    </div>
-    <div class="card" style="overflow-x:auto;">
-      <table class="tbl-wide" style="min-width:1990px;"><thead><tr>
-        <th style="width:34px;">№</th><th style="width:118px;">Код АБП / БИН</th><th style="min-width:230px;">Субъект</th>
-        <th style="width:120px;">Область</th><th style="width:105px;">Район</th><th style="width:78px;">Вид субъекта</th><th style="width:110px;">Тип аудита</th>
-        <th style="width:112px;">Наличие республиканского бюджета</th><th style="width:100px;">Уровень риска АУ</th>
-        <th style="width:52px;">АБП</th><th style="width:100px;">Уровень риска АБП</th>
-        <th style="width:104px;text-align:right;">Объём финансирования за ${y-2} год, млн ₸</th><th style="width:104px;text-align:right;">Объём финансирования за ${y-1} год, млн ₸</th><th style="width:104px;text-align:right;">Объём финансирования за ${y} год, млн ₸</th><th style="width:104px;text-align:right;">Объём финансирования итого, млн ₸</th>
-        <th style="width:100px;">Дата последней проверки</th><th style="width:150px;">Тип последней проверки</th><th style="width:30px;"></th></tr></thead>
-        <tbody id="terr-body"></tbody></table>
-    </div>
-    <div class="footer-row"><span id="terr-count"></span></div>`;
-  renderTerritoryBody();
-}
-function renderTerritoryBody(){
-  const rows = mpTerrRows();
-  document.getElementById('terr-body').innerHTML = rows.length ? rows.map((o,i)=>{
-    return `<tr class="row" style="cursor:pointer;" onclick="mpOpenObj(${JSON.stringify(o.name).replace(/"/g,'&quot;')}, '${o.year}')">
-      <td style="color:var(--text-muted);">${i+1}</td><td class="mono" style="color:var(--text-2);white-space:nowrap;">${o.bin||'—'}</td><td>${o.name}</td>${mpSubjectCells(o, mpTerr.year)}</tr>`;
-  }).join('') : `<tr><td colspan="18" style="text-align:center;color:var(--text-muted);padding:24px;">Объекты не найдены — попробуйте изменить фильтры</td></tr>`;
-  document.getElementById('terr-count').textContent = `Показано ${rows.length} из ${mpTerrAll().length}`;
-}
-function exportTerritory(){
-  const rows = mpTerrRows();
-  if(!rows.length){ alert('Нет данных для экспорта — измените фильтры.'); return; }
-  downloadCSV(`территория_${mpTerr.region}_${mpTerr.year}.csv`, [['№', ...mpRowHeader(mpTerr.year)], ...rows.map((o,i)=>[i+1, ...mpRowValues(o, mpTerr.year)])]);
-}
-
-/* ---------- отправка в ДВГА → уведомления ---------- */
-function mpDispatchWrap(){
-  const before = regionalBatches.length;
-  dispatchSurDraft_orig();
-  const fresh = regionalBatches.slice(before);
-  if(!fresh.length) return;
-  fresh.forEach(b=>mpPushNotification(b.region, null, null, null, b.objects, b.year));
-  mpNtfTab='all'; mpNtfSel=0;
-  openNotifications(0);
-}
-/* демо-наполнение для картинок макета */
-function mpSeedNotifications(){
-  const byReg = {}; dataEVGA.filter(o=>o.year==='2026').forEach(o=>{ const r=o.region||deriveRegion(o.name); byReg[r]=(byReg[r]||0)+1; });
-  const top = Object.entries(byReg).sort((a,b)=>b[1]-a[1]).map(e=>e[0]);
-  const d = demoTodayStr();
-  surNotifications = [];
-  const objsOf = r => dataEVGA.filter(o=>o.year==='2026' && (o.region||deriveRegion(o.name))===r);
-  mpPushNotification(top[2], 'Демо-суперпользователь', d, '09:20', objsOf(top[2]), '2026');
-  mpPushNotification(top[1], mpCurrentUser(), d, '10:45', objsOf(top[1]), '2026');
-  mpPushNotification(top[0], mpCurrentUser(), d, '10:45', objsOf(top[0]), '2026');
-  mpUpdateNtfBadge();
-}
-
-/* смена пользователя: «Мои уведомления» пересчитываются по текущему пользователю */
-document.addEventListener('DOMContentLoaded', ()=>{ const s=document.getElementById('demo-user'); if(s) s.addEventListener('change', ()=>{ const v=document.getElementById('view-notifications'); if(v && v.style.display==='block') renderNotifications(); }); });
+/* ---------- КВГА / демо: действия ДВГА выполняются в модуле «ЭВГА» ----------
+   В СУР работает только КВГА. Кнопки рассмотрения (отбор, «На согласование», «На подписание»,
+   «Подписать и направить в КВГА», Протокол) доступны только демо-суперпользователю как имитация ЭВГА. */
+function mpIsDemo(){ const s=document.getElementById('demo-user'); return !!s && s.value==='saq-demo-superuser'; }
+function mpAwaitDvga(b){ return b.status==='review' || b.status==='rework'; }
+document.addEventListener('DOMContentLoaded', ()=>{ const s=document.getElementById('demo-user'); if(!s) return;
+  s.addEventListener('change', ()=>{
+    const m=document.getElementById('view-dvga-main'), d=document.getElementById('view-dvga-detail');
+    if(m && m.style.display==='block' && typeof renderDvgaMain==='function') renderDvgaMain();
+    if(d && d.style.display==='block' && typeof renderDvgaBatchDetail==='function') renderDvgaBatchDetail();
+  });
+});
 
 </script>
 <script>
@@ -4391,11 +4243,11 @@ function riskLabelFor(risk){
 }
 
 /* ---------- переключение экранов (сайдбар) ---------- */
-const ALL_NAV_IDS = ['nav-check','nav-dvga','nav-notifications','nav-perechen','nav-criteria','nav-history','nav-integrations','nav-analytics','nav-oko'];
+const ALL_NAV_IDS = ['nav-check','nav-dvga','nav-perechen','nav-criteria','nav-history','nav-integrations','nav-analytics','nav-oko'];
 function clearAllNav(){
   ALL_NAV_IDS.forEach(id=>{ const el = document.getElementById(id); if(el) el.classList.remove('active'); });
 }
-const ALL_SCREEN_LIST_VIEWS = ['view-risk-detail','view-notifications','view-territory','view-list','view-detail','view-perechen-main','view-dvga-main','view-dvga-detail','view-sur-draft-detail','view-engagement','view-semiannual','view-final','view-group-detail'];
+const ALL_SCREEN_LIST_VIEWS = ['view-risk-detail','view-list','view-detail','view-perechen-main','view-dvga-main','view-dvga-detail','view-sur-draft-detail','view-engagement','view-semiannual','view-final','view-group-detail'];
 function hideAllScreenListViews(){
   ALL_SCREEN_LIST_VIEWS.forEach(id=>{ const el = document.getElementById(id); if(el) el.style.display = 'none'; });
 }
@@ -5308,7 +5160,6 @@ function setContour(c){
   selectedIndices.clear();
   document.getElementById('nav-oko').style.display = c==='b' ? 'flex' : 'none';
   document.getElementById('nav-dvga').style.display = c==='b' ? 'flex' : 'none';
-  document.getElementById('nav-notifications').style.display = c==='b' ? 'flex' : 'none';
   document.getElementById('dfo-import-panel').style.display = c==='a' ? 'block' : 'none';
   document.getElementById('row-context').style.display = c==='b' ? 'flex' : 'none';
   document.getElementById('row-checktype-tabs').style.display = c==='a' ? 'flex' : 'none';
@@ -5421,11 +5272,10 @@ function renderKpis(){
   const kGrid = document.getElementById('kpi-grid');
   const isB5 = currentContour==='b' && perechenMode==='subjects';
   kGrid.style.gridTemplateColumns = isB5 ? 'repeat(5,1fr)' : '';
-  const lvlOf = [null,'high','mid','low'];
   kGrid.innerHTML = labels.map((l,i)=>`
-    <div class="kpi ${classes[i]}${isB5&&lvlOf[i]?' kpi-click':''}" ${isB5&&lvlOf[i]?`onclick="openRiskDetail('${lvlOf[i]}')" title="Открыть детализацию сработавших показателей"`:''}><div class="lbl">${l}</div><div class="val">${values[i]}</div></div>`).join('')
+    <div class="kpi ${classes[i]}"><div class="lbl">${l}</div><div class="val">${values[i]}</div></div>`).join('')
     + (isB5 ? `<div class="kpi neutral"><div class="lbl">Исключено (нет данных)</div><div class="val">${notCalculatedList.length}</div></div>` : '');
-  const btnRD = document.getElementById('btn-risk-detail'); if(btnRD) btnRD.style.display = isB5 ? '' : 'none';
+
 }
 
 /* ---------- фильтры ---------- */
@@ -5609,7 +5459,7 @@ function renderTable(){
       ${checkboxCell}
       <td style="color:var(--text-muted);white-space:nowrap;">${displayNum}</td>
       ${currentContour==='b' ? `<td class="mono" style="color:var(--text-2);white-space:nowrap;">${o.bin||'—'}</td>` : ''}
-      <td>${o.name}${sentTo?` <span class="tag-mini">отправлено в ${sentTo}</span>`:''}${(!sentTo && sentToRegion[o.name])?` <span class="tag-mini">в ДВГА: ${sentToRegion[o.name]}</span>`:''}${(!sentTo && !sentToRegion[o.name] && draftedTo[o.name])?` <span class="tag-mini">в проекте: ${draftedTo[o.name]}</span>`:''}${excluded?' <span class="tag-mini">исключён</span>':''}</td>
+      <td>${currentContour==='b' ? `<span class="mp-subj" title="Открыть карточку объекта">${o.name}</span>` : o.name}${sentTo?` <span class="tag-mini">отправлено в ${sentTo}</span>`:''}${(!sentTo && sentToRegion[o.name])?` <span class="tag-mini">в ДВГА: ${sentToRegion[o.name]}</span>`:''}${(!sentTo && !sentToRegion[o.name] && draftedTo[o.name])?` <span class="tag-mini">в проекте: ${draftedTo[o.name]}</span>`:''}${excluded?' <span class="tag-mini">исключён</span>':''}</td>
       ${currentContour==='b' ? mpSubjectCells(o) : `
       <td style="color:var(--text-2);">${o.kind}</td>
       <td style="color:var(--text-2);">${o.year}</td>
@@ -7544,8 +7394,7 @@ function removeSurDraftObject(oi){
   renderSurDraftDetail();
   renderDvgaDrafts();
 }
-function dispatchSurDraft(){ return mpDispatchWrap(); }
-function dispatchSurDraft_orig(){
+function dispatchSurDraft(){
   const d = surDispatchDrafts[currentSurDraft];
   if(!d || d.status !== 'draft' || !d.objects.length) return;
   if(!d.deadline){ alert('Укажите срок исполнения.'); return; }
@@ -7637,7 +7486,7 @@ function dvgaFileChip(f, removeHtml){
     <span style="color:var(--text-muted);">${dvgaFmtSize(f.size)}${f.date ? ' · ' + f.date : ''}</span>${removeHtml||''}
   </span>`;
 }
-function dvgaProtocolEditable(b){ return ['review','coordination','signing','rework'].includes(b.status); }
+function dvgaProtocolEditable(b){ return mpIsDemo() && ['review','coordination','signing','rework'].includes(b.status); }
 function dvgaAttachProtocol(i){
   dvgaPickFiles('.pdf,.doc,.docx', false, fs => {
     regionalBatches[i].protocol = {name: fs[0].name, size: fs[0].size, date: demoTodayStr()};
@@ -7668,7 +7517,7 @@ function dvgaProtocolBlockHtml(b, i){
       <span style="font-size:12.5px;color:var(--danger-text);"><i class="ti ti-alert-circle" style="vertical-align:-2px;"></i> Без протокола результаты нельзя направить в КВГА</span>
       <span style="font-size:12px;color:var(--text-muted);">PDF, DOC, DOCX</span></div>`;
   } else {
-    body = '<span style="color:var(--text-muted);font-size:13px;">Протокол не был приложен</span>';
+    body = b.status === 'returned' ? '<span style="color:var(--text-muted);font-size:13px;">Протокол не был приложен</span>' : '<span style="color:var(--text-muted);font-size:13px;">Протокол пока не получен — прикладывается ДВГА в модуле «ЭВГА»</span>';
   }
   return `<div class="card" style="padding:14px 18px;margin-bottom:14px;${(!b.protocol && edit) ? 'border-color:var(--danger-border);' : ''}">
     <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px;">
@@ -7770,6 +7619,7 @@ function dvgaBatchStatusBadge(status){
   return map[status] || status;
 }
 function dvgaBatchActionButton(b, i){
+  if(!mpIsDemo()) return '';
   if(b.status === 'review' || b.status === 'rework') return `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="advanceDvgaBatch(${i})"><i class="ti ti-send"></i>На согласование</button>`;
   if(b.status === 'coordination') return `<button class="btn" style="height:28px;padding:0 10px;font-size:12px;" onclick="advanceDvgaBatch(${i})"><i class="ti ti-send"></i>На подписание</button>`;
   if(b.status === 'signing') return b.protocol
@@ -7954,7 +7804,7 @@ function renderDvgaBatchDetail(){
   const keptCount = b.objects.filter(o=>o.kept).length;
   document.getElementById('dvga-detail-meta').innerHTML =
     `${b.year} год · Направлено: ${b.sentDate} · Объектов направлено: ${b.objects.length} · Оставлено к проверке: ${keptCount}${b.returnedDate ? ` · Возвращено в КВГА: ${b.returnedDate}` : ''}`;
-  const editable = b.status === 'review' || b.status === 'rework';
+  const editable = mpIsDemo() && (b.status === 'review' || b.status === 'rework');
   const labelFn = currentContour === 'b' ? riskLabelB : riskLabelA;
   const colCount = 9;
   document.getElementById('dvga-detail-extra').innerHTML = dvgaHistoryHtml(b) + dvgaProtocolBlockHtml(b, currentDvgaBatch);
@@ -7972,7 +7822,7 @@ function renderDvgaBatchDetail(){
         ? (editable ? '<div title="Объекты с низким уровнем риска не отбираются и в перечень не включаются"><input type="checkbox" disabled style="opacity:.35;cursor:not-allowed;"><div style="font-size:11px;color:var(--text-muted);margin-top:2px;white-space:nowrap;">не отбирается</div></div>' : '<span class="badge low">Исключён</span>')
         : editable
         ? `<input type="checkbox" ${o.kept?'checked':''} onchange="toggleDvgaDecision(${oi}, this.checked)">`
-        : (o.kept ? '<span class="badge sent">Оставлен</span>' : '<span class="badge low">Исключён</span>')}</td>
+        : (mpAwaitDvga(b) ? '<span style="font-size:12px;color:var(--text-muted);white-space:nowrap;">Ожидается решение ДВГА</span>' : (o.kept ? '<span class="badge sent">Оставлен</span>' : '<span class="badge low">Исключён</span>'))}</td>
       <td style="text-align:right;"><i class="ti ti-chevron-${expanded?'up':'down'}" style="color:var(--text-muted);"></i></td>
     </tr>`;
     if(expanded){
@@ -7996,6 +7846,9 @@ function renderDvgaBatchDetail(){
   else if(b.status === 'returned') actionsHtml = b.merged
     ? `<span class="badge sent">Учтено в проекте перечня</span>`
     : `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><button class="btn btn-primary" onclick="openDvgaRework(${currentDvgaBatch})"><i class="ti ti-arrow-back-up"></i>Вернуть на доработку</button><span class="badge mid">Ожидает объединения в проект перечня</span></div>`;
+  if(b.status !== 'returned') actionsHtml = mpIsDemo()
+    ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span class="badge neutral">Демо: имитация действий ДВГА в модуле «ЭВГА»</span>${actionsHtml}</div>`
+    : '<span style="font-size:12.5px;color:var(--text-2);">Рассмотрение выполняет ДВГА в модуле «ЭВГА»; статус, решение по объектам и Протокол поступают из ЭВГА.</span>';
   document.getElementById('dvga-detail-actions').innerHTML = actionsHtml;
 }
 /* ---------- выгрузка результата СУР по региону, направленного на рассмотрение в ДВГА ---------- */
@@ -9300,7 +9153,7 @@ renderTableHead();
 applyFilters();
 </script>
 <script src="saq-shell.js"></script>
-<script>document.documentElement.dataset.build="2026-10-29-check-review-fixes";</script>
+<script>document.documentElement.dataset.build="2026-10-29-kvga-only-lvl-click-final";</script>
 <script>
 (function(){
  const select=document.getElementById('demo-user');
